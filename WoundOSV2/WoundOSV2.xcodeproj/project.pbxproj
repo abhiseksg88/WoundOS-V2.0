@@ -61,6 +61,15 @@
 		DD000000000000000000097 /* DepthHeatmapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000097; };
 		DD000000000000000000098 /* ClinicalSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000098; };
 		DD000000000000000000099 /* PUSHScoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000099; };
+		DD000000000000000000100 /* BoundaryEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000100; };
+		DD000000000000000000101 /* BoundaryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000101; };
+		DD000000000000000000102 /* BezierPathEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000102; };
+		DD000000000000000000103 /* MeshViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000103; };
+		DD000000000000000000104 /* MeshViewerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000104; };
+		DD000000000000000000105 /* SplatRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000105; };
+		DD000000000000000000106 /* SplatDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000106; };
+		DD000000000000000000107 /* ViewerToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000107; };
+		DD000000000000000000108 /* LongitudinalCompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000108; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -135,6 +144,15 @@
 		CC000000000000000000097 /* DepthHeatmapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthHeatmapView.swift; sourceTree = "<group>"; };
 		CC000000000000000000098 /* ClinicalSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClinicalSummaryView.swift; sourceTree = "<group>"; };
 		CC000000000000000000099 /* PUSHScoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PUSHScoreView.swift; sourceTree = "<group>"; };
+		CC000000000000000000100 /* BoundaryEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoundaryEditView.swift; sourceTree = "<group>"; };
+		CC000000000000000000101 /* BoundaryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoundaryViewModel.swift; sourceTree = "<group>"; };
+		CC000000000000000000102 /* BezierPathEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BezierPathEngine.swift; sourceTree = "<group>"; };
+		CC000000000000000000103 /* MeshViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshViewerView.swift; sourceTree = "<group>"; };
+		CC000000000000000000104 /* MeshViewerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeshViewerController.swift; sourceTree = "<group>"; };
+		CC000000000000000000105 /* SplatRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplatRenderer.swift; sourceTree = "<group>"; };
+		CC000000000000000000106 /* SplatDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplatDownloader.swift; sourceTree = "<group>"; };
+		CC000000000000000000107 /* ViewerToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerToggle.swift; sourceTree = "<group>"; };
+		CC000000000000000000108 /* LongitudinalCompareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LongitudinalCompareView.swift; sourceTree = "<group>"; };
 		PP000000000000000000001 /* WoundOSV2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WoundOSV2.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		PP000000000000000000002 /* WoundOSV2Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WoundOSV2Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		PP000000000000000000003 /* WoundOSV2UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WoundOSV2UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -226,6 +244,8 @@
 				BB000000000000000000009 /* Capture */,
 				BB000000000000000000016 /* Processing */,
 				BB000000000000000000017 /* Results */,
+				BB000000000000000000018 /* Boundary */,
+				BB000000000000000000019 /* Viewer3D */,
 				BB000000000000000000008 /* Settings */,
 			);
 			path = Features;
@@ -251,6 +271,29 @@
 				CC000000000000000000018 /* WoundTimelineView.swift */,
 			);
 			path = Patient;
+			sourceTree = "<group>";
+		};
+		BB000000000000000000018 /* Boundary */ = {
+			isa = PBXGroup;
+			children = (
+				CC000000000000000000100 /* BoundaryEditView.swift */,
+				CC000000000000000000101 /* BoundaryViewModel.swift */,
+				CC000000000000000000102 /* BezierPathEngine.swift */,
+			);
+			path = Boundary;
+			sourceTree = "<group>";
+		};
+		BB000000000000000000019 /* Viewer3D */ = {
+			isa = PBXGroup;
+			children = (
+				CC000000000000000000103 /* MeshViewerView.swift */,
+				CC000000000000000000104 /* MeshViewerController.swift */,
+				CC000000000000000000105 /* SplatRenderer.swift */,
+				CC000000000000000000106 /* SplatDownloader.swift */,
+				CC000000000000000000107 /* ViewerToggle.swift */,
+				CC000000000000000000108 /* LongitudinalCompareView.swift */,
+			);
+			path = Viewer3D;
 			sourceTree = "<group>";
 		};
 		BB000000000000000000016 /* Processing */ = {
@@ -568,6 +611,15 @@
 				DD000000000000000000097 /* DepthHeatmapView.swift in Sources */,
 				DD000000000000000000098 /* ClinicalSummaryView.swift in Sources */,
 				DD000000000000000000099 /* PUSHScoreView.swift in Sources */,
+				DD000000000000000000100 /* BoundaryEditView.swift in Sources */,
+				DD000000000000000000101 /* BoundaryViewModel.swift in Sources */,
+				DD000000000000000000102 /* BezierPathEngine.swift in Sources */,
+				DD000000000000000000103 /* MeshViewerView.swift in Sources */,
+				DD000000000000000000104 /* MeshViewerController.swift in Sources */,
+				DD000000000000000000105 /* SplatRenderer.swift in Sources */,
+				DD000000000000000000106 /* SplatDownloader.swift in Sources */,
+				DD000000000000000000107 /* ViewerToggle.swift in Sources */,
+				DD000000000000000000108 /* LongitudinalCompareView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
