@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="22225" systemVersion="23F79" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+    <entity name="PatientEntity" representedClassName="PatientEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="firstName" attributeType="String"/>
+        <attribute name="lastName" attributeType="String"/>
+        <attribute name="dateOfBirth" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="mrn" optional="YES" attributeType="String"/>
+        <attribute name="facilityName" optional="YES" attributeType="String"/>
+        <attribute name="roomNumber" optional="YES" attributeType="String"/>
+        <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>
+        <relationship name="scans" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="ScanEntity" inverseName="patient" inverseEntity="ScanEntity"/>
+    </entity>
+    <entity name="ScanEntity" representedClassName="ScanEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="patientId" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="capturedAt" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="status" attributeType="String"/>
+        <attribute name="bodyLocation" optional="YES" attributeType="String"/>
+        <attribute name="woundType" optional="YES" attributeType="String"/>
+        <attribute name="measurementsJSON" optional="YES" attributeType="String"/>
+        <attribute name="pushScoreJSON" optional="YES" attributeType="String"/>
+        <attribute name="clinicalSummary" optional="YES" attributeType="String"/>
+        <attribute name="healingTrend" optional="YES" attributeType="String"/>
+        <attribute name="annotatedImagePath" optional="YES" attributeType="String"/>
+        <attribute name="depthHeatmapPath" optional="YES" attributeType="String"/>
+        <attribute name="woundMaskPath" optional="YES" attributeType="String"/>
+        <attribute name="meshOBJPath" optional="YES" attributeType="String"/>
+        <attribute name="splatFilePath" optional="YES" attributeType="String"/>
+        <attribute name="pdfReportPath" optional="YES" attributeType="String"/>
+        <relationship name="patient" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="PatientEntity" inverseName="scans" inverseEntity="PatientEntity"/>
+    </entity>
+</model>
