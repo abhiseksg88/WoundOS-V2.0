@@ -40,17 +40,9 @@ struct ContentView: View {
             }
         }
         .fullScreenCover(isPresented: $showCapture) {
-            NavigationStack {
-                Text("AR Capture — Coming in Phase 2")
-                    .font(WOSTypography.title2)
-                    .foregroundColor(WOSColors.textSecondary)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarLeading) {
-                            Button("Close") {
-                                showCapture = false
-                            }
-                        }
-                    }
+            CaptureContainerView { selectedFrames in
+                showCapture = false
+                // In Phase 3, this will navigate to ProcessingView
             }
         }
     }

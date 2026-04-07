@@ -42,6 +42,15 @@
 		DD000000000000000000060 /* WoundOSV2UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000060; };
 		DD000000000000000000070 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = AE000000000000000000001; };
 		DD000000000000000000071 /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = AE000000000000000000002; };
+		DD000000000000000000080 /* ARSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000080; };
+		DD000000000000000000081 /* CaptureContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000081; };
+		DD000000000000000000082 /* CaptureViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000082; };
+		DD000000000000000000083 /* ARCaptureViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000083; };
+		DD000000000000000000084 /* ArcCaptureGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000084; };
+		DD000000000000000000085 /* FrameSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000085; };
+		DD000000000000000000086 /* CoverageRadar.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000086; };
+		DD000000000000000000087 /* MotionFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000087; };
+		DD000000000000000000088 /* DistancePill.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000088; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -97,6 +106,15 @@
 		CC000000000000000000042 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CC000000000000000000050 /* WoundOSV2Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WoundOSV2Tests.swift; sourceTree = "<group>"; };
 		CC000000000000000000060 /* WoundOSV2UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WoundOSV2UITests.swift; sourceTree = "<group>"; };
+		CC000000000000000000080 /* ARSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARSessionManager.swift; sourceTree = "<group>"; };
+		CC000000000000000000081 /* CaptureContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureContainerView.swift; sourceTree = "<group>"; };
+		CC000000000000000000082 /* CaptureViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViewModel.swift; sourceTree = "<group>"; };
+		CC000000000000000000083 /* ARCaptureViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARCaptureViewController.swift; sourceTree = "<group>"; };
+		CC000000000000000000084 /* ArcCaptureGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArcCaptureGuide.swift; sourceTree = "<group>"; };
+		CC000000000000000000085 /* FrameSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameSelector.swift; sourceTree = "<group>"; };
+		CC000000000000000000086 /* CoverageRadar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverageRadar.swift; sourceTree = "<group>"; };
+		CC000000000000000000087 /* MotionFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionFeedback.swift; sourceTree = "<group>"; };
+		CC000000000000000000088 /* DistancePill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DistancePill.swift; sourceTree = "<group>"; };
 		PP000000000000000000001 /* WoundOSV2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WoundOSV2.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		PP000000000000000000002 /* WoundOSV2Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WoundOSV2Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		PP000000000000000000003 /* WoundOSV2UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WoundOSV2UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -185,6 +203,7 @@
 			children = (
 				BB000000000000000000006 /* Dashboard */,
 				BB000000000000000000007 /* Patient */,
+				BB000000000000000000009 /* Capture */,
 				BB000000000000000000008 /* Settings */,
 			);
 			path = Features;
@@ -212,6 +231,21 @@
 			path = Patient;
 			sourceTree = "<group>";
 		};
+		BB000000000000000000009 /* Capture */ = {
+			isa = PBXGroup;
+			children = (
+				CC000000000000000000081 /* CaptureContainerView.swift */,
+				CC000000000000000000082 /* CaptureViewModel.swift */,
+				CC000000000000000000083 /* ARCaptureViewController.swift */,
+				CC000000000000000000084 /* ArcCaptureGuide.swift */,
+				CC000000000000000000085 /* FrameSelector.swift */,
+				CC000000000000000000086 /* CoverageRadar.swift */,
+				CC000000000000000000087 /* MotionFeedback.swift */,
+				CC000000000000000000088 /* DistancePill.swift */,
+			);
+			path = Capture;
+			sourceTree = "<group>";
+		};
 		BB000000000000000000008 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
@@ -237,6 +271,7 @@
 			isa = PBXGroup;
 			children = (
 				CC000000000000000000027 /* ScanStore.swift */,
+				CC000000000000000000080 /* ARSessionManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -468,6 +503,15 @@
 				DD000000000000000000028 /* ServerConfig.swift in Sources */,
 				DD000000000000000000029 /* GaussianSplat.metal in Sources */,
 				DD000000000000000000041 /* WoundOSV2.xcdatamodeld in Sources */,
+				DD000000000000000000080 /* ARSessionManager.swift in Sources */,
+				DD000000000000000000081 /* CaptureContainerView.swift in Sources */,
+				DD000000000000000000082 /* CaptureViewModel.swift in Sources */,
+				DD000000000000000000083 /* ARCaptureViewController.swift in Sources */,
+				DD000000000000000000084 /* ArcCaptureGuide.swift in Sources */,
+				DD000000000000000000085 /* FrameSelector.swift in Sources */,
+				DD000000000000000000086 /* CoverageRadar.swift in Sources */,
+				DD000000000000000000087 /* MotionFeedback.swift in Sources */,
+				DD000000000000000000088 /* DistancePill.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
