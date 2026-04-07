@@ -2,7 +2,14 @@ import SwiftUI
 
 struct PatientProfileView: View {
     let patient: Patient
+    @AppStorage("useMockServer") private var useMockServer: Bool = true
+
     @State private var showCapture = false
+    @State private var showProcessing = false
+    @State private var showBoundary = false
+    @State private var showResults = false
+    @State private var capturedFrames: [SelectedFrame] = []
+    @State private var serverResponse: ServerResponse?
 
     var body: some View {
         ScrollView {
@@ -18,7 +25,80 @@ struct PatientProfileView: View {
         .navigationTitle(patient.fullName)
         .navigationBarTitleDisplayMode(.large)
         .fullScreenCover(isPresented: $showCapture) {
-            Text("Capture coming in Phase 2")
+            CaptureContainerView { selectedFrames in
+                self.capturedFrames = selectedFrames
+                showCapture = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    showProcessing = true
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showProcessing) {
+            NavigationStack {
+                ProcessingView(
+                    viewModel: ProcessingViewModel(useMock: useMockServer),
+                    frames: capturedFrames
+                ) { response in
+                    self.serverResponse = response
+                    showProcessing = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        showBoundary = true
+                    }
+                }
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Cancel") { showProcessing = false }
+                    }
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showBoundary) {
+            NavigationStack {
+                if let response = serverResponse {
+                    let annotatedImage: UIImage? = {
+                        guard let d = Data(base64Encoded: response.annotatedImageBase64) else { return nil }
+                        return UIImage(data: d)
+                    }()
+                    let maskImage: UIImage? = {
+                        guard let d = Data(base64Encoded: response.woundMaskBase64) else { return nil }
+                        return UIImage(data: d)
+                    }()
+                    BoundaryEditView(viewModel: BoundaryViewModel(woundImage: annotatedImage, maskImage: maskImage))
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarLeading) {
+                                Button("Skip") {
+                                    showBoundary = false
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                        showResults = true
+                                    }
+                                }
+                            }
+                        }
+                        .onDisappear {
+                            if !showResults {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    showResults = true
+                                }
+                            }
+                        }
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showResults) {
+            NavigationStack {
+                if let response = serverResponse {
+                    ResultsView(viewModel: ResultsViewModel(response: response, patient: patient))
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarLeading) {
+                                Button("Done") {
+                                    showResults = false
+                                    serverResponse = nil
+                                    capturedFrames = []
+                                }
+                            }
+                        }
+                }
+            }
         }
     }
 

@@ -52,6 +52,9 @@ struct RecentScanCard: View {
             }
             .frame(width: 140)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(patientName), \(scan.bodyLocation.displayName)")
+        .accessibilityValue(scan.measurements.map { String(format: "%.1f square centimeters", $0.areaCm2) } ?? scan.status.rawValue)
     }
 
     private func healingBadge(for trend: HealingTrend) -> some View {

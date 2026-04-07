@@ -10,6 +10,7 @@ struct SettingsView: View {
             Form {
                 serverSection
                 deviceSection
+                lidarDiagnosticsSection
                 aboutSection
             }
             .navigationTitle("Settings")

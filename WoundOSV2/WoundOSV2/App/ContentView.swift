@@ -4,6 +4,7 @@ struct ContentView: View {
     @State private var selectedTab = 0
     @State private var showCapture = false
     @State private var showProcessing = false
+    @State private var showBoundary = false
     @State private var showResults = false
     @State private var capturedFrames: [SelectedFrame] = []
     @State private var serverResponse: ServerResponse?
@@ -60,7 +61,7 @@ struct ContentView: View {
                     self.serverResponse = response
                     showProcessing = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        showResults = true
+                        showBoundary = true
                     }
                 }
                 .toolbar {
@@ -72,6 +73,40 @@ struct ContentView: View {
                 }
             }
         }
+        .fullScreenCover(isPresented: $showBoundary) {
+            NavigationStack {
+                if let response = serverResponse {
+                    let annotatedImage: UIImage? = {
+                        guard let data = Data(base64Encoded: response.annotatedImageBase64) else { return nil }
+                        return UIImage(data: data)
+                    }()
+                    let maskImage: UIImage? = {
+                        guard let data = Data(base64Encoded: response.woundMaskBase64) else { return nil }
+                        return UIImage(data: data)
+                    }()
+                    BoundaryEditView(viewModel: BoundaryViewModel(woundImage: annotatedImage, maskImage: maskImage))
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarLeading) {
+                                Button("Skip") {
+                                    showBoundary = false
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                        showResults = true
+                                    }
+                                }
+                            }
+                        }
+                        .onDisappear {
+                            if !showResults {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    showResults = true
+                                }
+                            }
+                        }
+                } else {
+                    Text("No data available")
+                }
+            }
+        }
         .fullScreenCover(isPresented: $showResults) {
             NavigationStack {
                 if let response = serverResponse {
@@ -80,6 +115,8 @@ struct ContentView: View {
                             ToolbarItem(placement: .navigationBarLeading) {
                                 Button("Done") {
                                     showResults = false
+                                    serverResponse = nil
+                                    capturedFrames = []
                                 }
                             }
                         }

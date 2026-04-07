@@ -11,12 +11,16 @@ struct PatientListView: View {
                         PatientRow(patient: patient, viewModel: viewModel)
                     }
                 }
+                .onDelete(perform: deletePatient)
             }
             .listStyle(.insetGrouped)
             .searchable(text: $viewModel.searchText, prompt: "Search patients")
             .navigationTitle("Patients")
             .navigationDestination(for: Patient.self) { patient in
                 PatientProfileView(patient: patient)
+            }
+            .refreshable {
+                viewModel.loadMockData()
             }
             .overlay {
                 if viewModel.filteredPatients.isEmpty && !viewModel.searchText.isEmpty {
@@ -26,6 +30,14 @@ struct PatientListView: View {
                 }
             }
         }
+    }
+
+    private func deletePatient(at offsets: IndexSet) {
+        for index in offsets {
+            let patient = viewModel.filteredPatients[index]
+            ScanStore.shared.deletePatient(id: patient.id)
+        }
+        viewModel.patients.remove(atOffsets: offsets)
     }
 
     private var emptyState: some View {
@@ -62,7 +74,6 @@ struct PatientRow: View {
 
     var body: some View {
         HStack(spacing: WOSSpacing.md) {
-            // Avatar
             ZStack {
                 Circle()
                     .fill(WOSColors.accent.opacity(0.15))
@@ -71,6 +82,7 @@ struct PatientRow: View {
                     .font(WOSTypography.headline)
                     .foregroundColor(WOSColors.accent)
             }
+            .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: WOSSpacing.xs) {
                 Text(patient.fullName)
@@ -103,6 +115,8 @@ struct PatientRow: View {
             }
         }
         .padding(.vertical, WOSSpacing.xs)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(patient.fullName), \(viewModel.woundCount(for: patient)) wounds")
     }
 
     private func healingBadge(for trend: HealingTrend) -> some View {

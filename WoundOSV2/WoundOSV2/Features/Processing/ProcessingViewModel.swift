@@ -44,6 +44,7 @@ final class ProcessingViewModel: ObservableObject {
     @Published var hasFailed = false
     @Published var errorMessage: String?
     @Published var serverResponse: ServerResponse?
+    @Published var wasQueued = false
 
     private let useMock: Bool
     private var cancellables = Set<AnyCancellable>()
@@ -86,15 +87,41 @@ final class ProcessingViewModel: ObservableObject {
                 self.serverResponse = response
                 self.isComplete = true
             } catch {
-                self.hasFailed = true
-                self.errorMessage = error.localizedDescription
-                self.stepStates[self.currentStep] = .failed
+                // Check if we should enqueue for offline upload
+                if !OfflineScanQueue.shared.isOnline && !useMock {
+                    self.wasQueued = true
+                    self.errorMessage = "No network connection. Scan has been queued for upload when connectivity is restored."
+                    self.hasFailed = true
+                    self.stepStates[self.currentStep] = .failed
+
+                    // Save frames to disk and enqueue
+                    let scanId = UUID()
+                    let scanDir = ScanStore.scanDirectory(for: scanId)
+                    let framesDir = scanDir.appendingPathComponent("frames")
+                    try? FileManager.default.createDirectory(at: framesDir, withIntermediateDirectories: true)
+
+                    for (index, frame) in frames.enumerated() {
+                        let framePath = framesDir.appendingPathComponent("frame_\(index).jpg")
+                        try? frame.jpegData.write(to: framePath)
+                    }
+
+                    OfflineScanQueue.shared.enqueue(
+                        scanId: scanId,
+                        patientId: UUID(), // Will be associated later
+                        framesDirectory: framesDir.path
+                    )
+                } else {
+                    self.hasFailed = true
+                    self.errorMessage = error.localizedDescription
+                    self.stepStates[self.currentStep] = .failed
+                }
             }
         }
     }
 
     func retry(frames: [SelectedFrame]) {
         hasFailed = false
+        wasQueued = false
         errorMessage = nil
         for step in ProcessingStep.allCases {
             stepStates[step] = .pending

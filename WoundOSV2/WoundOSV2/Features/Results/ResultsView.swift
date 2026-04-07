@@ -4,6 +4,8 @@ struct ResultsView: View {
     @StateObject var viewModel: ResultsViewModel
     @State private var showPDF = false
     @State private var show3DViewer = false
+    @State private var showShareSheet = false
+    @State private var showCompare = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -24,6 +26,42 @@ struct ResultsView: View {
         .navigationTitle("Results")
         .navigationBarTitleDisplayMode(.large)
         .onAppear { viewModel.saveToStore() }
+        .fullScreenCover(isPresented: $show3DViewer) {
+            NavigationStack {
+                MeshViewerView(meshData: viewModel.serverResponse.meshOBJData)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Close") { show3DViewer = false }
+                        }
+                    }
+            }
+        }
+        .sheet(isPresented: $showPDF) {
+            NavigationStack {
+                if let url = viewModel.pdfURL {
+                    ReportPreviewView(pdfURL: url)
+                } else {
+                    ProgressView("Generating report...")
+                        .onAppear { viewModel.generatePDF() }
+                        .onChange(of: viewModel.pdfURL) { _ in }
+                }
+            }
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if let image = viewModel.annotatedImage {
+                ShareSheet(items: [image])
+            }
+        }
+        .sheet(isPresented: $showCompare) {
+            NavigationStack {
+                LongitudinalCompareView()
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Close") { showCompare = false }
+                        }
+                    }
+            }
+        }
     }
 
     // MARK: - Annotated Image
@@ -39,6 +77,7 @@ struct ResultsView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .cornerRadius(WOSRadius.md)
+                        .accessibilityLabel("Annotated wound image with measurement overlays")
                 } else {
                     RoundedRectangle(cornerRadius: WOSRadius.md)
                         .fill(WOSColors.fill)
@@ -64,7 +103,7 @@ struct ResultsView: View {
                 iconColor: WOSColors.teal,
                 label: "Area",
                 value: String(format: "%.1f", viewModel.measurements.areaCm2),
-                unit: "cm²",
+                unit: "cm\u{00B2}",
                 trend: viewModel.areaTrend
             )
 
@@ -87,8 +126,8 @@ struct ResultsView: View {
             MeasurementCard(
                 icon: "ruler",
                 iconColor: WOSColors.orange,
-                label: "L × W",
-                value: String(format: "%.0f × %.0f", viewModel.measurements.lengthMm, viewModel.measurements.widthMm),
+                label: "L \u{00D7} W",
+                value: String(format: "%.0f \u{00D7} %.0f", viewModel.measurements.lengthMm, viewModel.measurements.widthMm),
                 unit: "mm"
             )
 
@@ -114,6 +153,7 @@ struct ResultsView: View {
 
                 DepthHeatmapView(image: viewModel.depthHeatmap)
                     .frame(height: 200)
+                    .accessibilityLabel("Wound depth heatmap showing green for shallow and red for deep areas")
             }
         }
     }
@@ -141,6 +181,7 @@ struct ResultsView: View {
                                 centerText: "\(score.totalScore)"
                             )
                             .frame(width: 64, height: 64)
+                            .accessibilityLabel("PUSH Score \(score.totalScore) out of \(score.maxPossible)")
 
                             VStack(alignment: .leading, spacing: WOSSpacing.sm) {
                                 scoreRow("Area", score.areaScore, maxScore: 10)
@@ -193,22 +234,30 @@ struct ResultsView: View {
                         .foregroundColor(WOSColors.textSecondary)
                 }
                 Spacer()
-                Image(systemName: "cube.transparent")
-                    .font(.system(size: 28))
-                    .foregroundColor(WOSColors.accent)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(WOSColors.textTertiary)
             }
         }
         .onTapGesture { show3DViewer = true }
+        .accessibilityLabel("View wound in 3D model viewer")
+        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: - Actions
     private var actionsSection: some View {
-        HStack(spacing: WOSSpacing.md) {
-            WOSButton(title: "PDF Report", icon: "doc.text", style: .secondary) {
-                showPDF = true
+        VStack(spacing: WOSSpacing.md) {
+            HStack(spacing: WOSSpacing.md) {
+                WOSButton(title: "PDF Report", icon: "doc.text", style: .secondary) {
+                    viewModel.generatePDF()
+                    showPDF = true
+                }
+                WOSButton(title: "Share", icon: "square.and.arrow.up", style: .secondary) {
+                    showShareSheet = true
+                }
             }
-            WOSButton(title: "Share", icon: "square.and.arrow.up", style: .secondary) {
-                // Share sheet in Phase 5
+            WOSButton(title: "Compare Scans", icon: "arrow.left.arrow.right", style: .ghost) {
+                showCompare = true
             }
         }
     }

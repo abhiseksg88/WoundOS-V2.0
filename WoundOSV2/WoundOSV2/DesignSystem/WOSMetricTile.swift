@@ -75,6 +75,9 @@ struct WOSMetricTile: View {
                 }
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(value) \(unit)")
+        .accessibilityValue(trend?.text ?? "")
     }
 }
 
