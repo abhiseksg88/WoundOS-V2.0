@@ -3,6 +3,11 @@ import SwiftUI
 struct ContentView: View {
     @State private var selectedTab = 0
     @State private var showCapture = false
+    @State private var showProcessing = false
+    @State private var showResults = false
+    @State private var capturedFrames: [SelectedFrame] = []
+    @State private var serverResponse: ServerResponse?
+    @AppStorage("useMockServer") private var useMockServer: Bool = true
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -12,7 +17,6 @@ struct ContentView: View {
                 }
                 .tag(0)
 
-            // Scan tab — acts as a button to open capture
             Color.clear
                 .tabItem {
                     Label("Scan", systemImage: "camera.viewfinder")
@@ -35,14 +39,51 @@ struct ContentView: View {
         .onChange(of: selectedTab) { newValue in
             if newValue == 1 {
                 showCapture = true
-                // Reset to dashboard so the tab bar doesn't stay on Scan
                 selectedTab = 0
             }
         }
         .fullScreenCover(isPresented: $showCapture) {
             CaptureContainerView { selectedFrames in
+                self.capturedFrames = selectedFrames
                 showCapture = false
-                // In Phase 3, this will navigate to ProcessingView
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    showProcessing = true
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showProcessing) {
+            NavigationStack {
+                ProcessingView(
+                    viewModel: ProcessingViewModel(useMock: useMockServer),
+                    frames: capturedFrames
+                ) { response in
+                    self.serverResponse = response
+                    showProcessing = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        showResults = true
+                    }
+                }
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Cancel") {
+                            showProcessing = false
+                        }
+                    }
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showResults) {
+            NavigationStack {
+                if let response = serverResponse {
+                    ResultsView(viewModel: ResultsViewModel(response: response))
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarLeading) {
+                                Button("Done") {
+                                    showResults = false
+                                }
+                            }
+                        }
+                }
             }
         }
     }
