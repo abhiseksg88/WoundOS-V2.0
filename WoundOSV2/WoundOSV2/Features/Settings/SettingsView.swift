@@ -69,6 +69,15 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - LiDAR Diagnostics Link
+    private var lidarDiagnosticsSection: some View {
+        Section {
+            NavigationLink(destination: LiDARDiagnosticsView()) {
+                Label("LiDAR Diagnostics", systemImage: "waveform.badge.magnifyingglass")
+            }
+        }
+    }
+
     // MARK: - About
     private var aboutSection: some View {
         Section("About") {

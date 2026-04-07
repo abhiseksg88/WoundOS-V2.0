@@ -70,6 +70,15 @@
 		DD000000000000000000106 /* SplatDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000106; };
 		DD000000000000000000107 /* ViewerToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000107; };
 		DD000000000000000000108 /* LongitudinalCompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000108; };
+		DD000000000000000000110 /* PDFReportGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000110; };
+		DD000000000000000000111 /* ReportPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000111; };
+		DD000000000000000000112 /* LiDARDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000112; };
+		DD000000000000000000113 /* OfflineScanQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000113; };
+		DD000000000000000000114 /* PlaneFitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000114; };
+		DD000000000000000000115 /* SurfaceAreaCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000115; };
+		DD000000000000000000116 /* DepthVolumeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000116; };
+		DD000000000000000000117 /* DimensionCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000117; };
+		DD000000000000000000118 /* ImageProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000118; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -153,6 +162,15 @@
 		CC000000000000000000106 /* SplatDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplatDownloader.swift; sourceTree = "<group>"; };
 		CC000000000000000000107 /* ViewerToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewerToggle.swift; sourceTree = "<group>"; };
 		CC000000000000000000108 /* LongitudinalCompareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LongitudinalCompareView.swift; sourceTree = "<group>"; };
+		CC000000000000000000110 /* PDFReportGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFReportGenerator.swift; sourceTree = "<group>"; };
+		CC000000000000000000111 /* ReportPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportPreviewView.swift; sourceTree = "<group>"; };
+		CC000000000000000000112 /* LiDARDiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiDARDiagnosticsView.swift; sourceTree = "<group>"; };
+		CC000000000000000000113 /* OfflineScanQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineScanQueue.swift; sourceTree = "<group>"; };
+		CC000000000000000000114 /* PlaneFitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaneFitter.swift; sourceTree = "<group>"; };
+		CC000000000000000000115 /* SurfaceAreaCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceAreaCalculator.swift; sourceTree = "<group>"; };
+		CC000000000000000000116 /* DepthVolumeCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthVolumeCalculator.swift; sourceTree = "<group>"; };
+		CC000000000000000000117 /* DimensionCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DimensionCalculator.swift; sourceTree = "<group>"; };
+		CC000000000000000000118 /* ImageProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageProcessing.swift; sourceTree = "<group>"; };
 		PP000000000000000000001 /* WoundOSV2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WoundOSV2.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		PP000000000000000000002 /* WoundOSV2Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WoundOSV2Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		PP000000000000000000003 /* WoundOSV2UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WoundOSV2UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -246,6 +264,7 @@
 				BB000000000000000000017 /* Results */,
 				BB000000000000000000018 /* Boundary */,
 				BB000000000000000000019 /* Viewer3D */,
+				BB000000000000000000023 /* Reports */,
 				BB000000000000000000008 /* Settings */,
 			);
 			path = Features;
@@ -271,6 +290,15 @@
 				CC000000000000000000018 /* WoundTimelineView.swift */,
 			);
 			path = Patient;
+			sourceTree = "<group>";
+		};
+		BB000000000000000000023 /* Reports */ = {
+			isa = PBXGroup;
+			children = (
+				CC000000000000000000110 /* PDFReportGenerator.swift */,
+				CC000000000000000000111 /* ReportPreviewView.swift */,
+			);
+			path = Reports;
 			sourceTree = "<group>";
 		};
 		BB000000000000000000018 /* Boundary */ = {
@@ -337,6 +365,7 @@
 			isa = PBXGroup;
 			children = (
 				CC000000000000000000019 /* SettingsView.swift */,
+				CC000000000000000000112 /* LiDARDiagnosticsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -361,6 +390,7 @@
 				CC000000000000000000080 /* ARSessionManager.swift */,
 				CC000000000000000000090 /* ReconstructionService.swift */,
 				CC000000000000000000091 /* AuthService.swift */,
+				CC000000000000000000113 /* OfflineScanQueue.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -369,6 +399,11 @@
 			isa = PBXGroup;
 			children = (
 				CC000000000000000000028 /* ServerConfig.swift */,
+				CC000000000000000000114 /* PlaneFitter.swift */,
+				CC000000000000000000115 /* SurfaceAreaCalculator.swift */,
+				CC000000000000000000116 /* DepthVolumeCalculator.swift */,
+				CC000000000000000000117 /* DimensionCalculator.swift */,
+				CC000000000000000000118 /* ImageProcessing.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -620,6 +655,15 @@
 				DD000000000000000000106 /* SplatDownloader.swift in Sources */,
 				DD000000000000000000107 /* ViewerToggle.swift in Sources */,
 				DD000000000000000000108 /* LongitudinalCompareView.swift in Sources */,
+				DD000000000000000000110 /* PDFReportGenerator.swift in Sources */,
+				DD000000000000000000111 /* ReportPreviewView.swift in Sources */,
+				DD000000000000000000112 /* LiDARDiagnosticsView.swift in Sources */,
+				DD000000000000000000113 /* OfflineScanQueue.swift in Sources */,
+				DD000000000000000000114 /* PlaneFitter.swift in Sources */,
+				DD000000000000000000115 /* SurfaceAreaCalculator.swift in Sources */,
+				DD000000000000000000116 /* DepthVolumeCalculator.swift in Sources */,
+				DD000000000000000000117 /* DimensionCalculator.swift in Sources */,
+				DD000000000000000000118 /* ImageProcessing.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
