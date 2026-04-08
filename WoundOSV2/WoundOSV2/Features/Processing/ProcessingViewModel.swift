@@ -63,12 +63,40 @@ final class ProcessingViewModel: ObservableObject {
                     ? MockReconstructionService()
                     : ReconstructionService()
 
-                // Animate through steps
+                // Step 1: Upload frames to server
                 await advanceToStep(.upload)
-                try await Task.sleep(nanoseconds: 300_000_000)
 
-                await advanceToStep(.reconstruct)
+                // Listen to progress stream for real-time updates
+                let progressStream = service.progressStream()
+                let progressTask = Task {
+                    for await progress in progressStream {
+                        await MainActor.run {
+                            switch progress {
+                            case .uploading:
+                                // Already on upload step
+                                break
+                            case .processing(let step):
+                                if step.contains("Reconstruct") || step.contains("Queued") {
+                                    self.stepStates[.upload] = .complete
+                                    self.stepStates[.reconstruct] = .active
+                                    self.currentStep = .reconstruct
+                                } else if step.contains("Segment") {
+                                    self.stepStates[.reconstruct] = .complete
+                                    self.stepStates[.segment] = .active
+                                    self.currentStep = .segment
+                                } else if step.contains("Refin") || step.contains("Measur") {
+                                    self.stepStates[.segment] = .complete
+                                    self.stepStates[.measure] = .active
+                                    self.currentStep = .measure
+                                }
+                            case .complete, .failed:
+                                break // Handled below
+                            }
+                        }
+                    }
+                }
 
+                // Step 2: Upload + poll (ReconstructionService handles the async flow)
                 let response = try await service.uploadScan(
                     frames: frames,
                     woundPoint: nil,
@@ -76,11 +104,7 @@ final class ProcessingViewModel: ObservableObject {
                     generateSplat: true
                 )
 
-                await advanceToStep(.segment)
-                try await Task.sleep(nanoseconds: 400_000_000)
-
-                await advanceToStep(.measure)
-                try await Task.sleep(nanoseconds: 300_000_000)
+                progressTask.cancel()
 
                 await advanceToStep(.complete)
 

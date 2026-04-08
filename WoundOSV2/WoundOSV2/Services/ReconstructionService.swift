@@ -32,7 +32,7 @@ protocol ReconstructionServiceProtocol {
     func progressStream() -> AsyncStream<UploadProgress>
 }
 
-// MARK: - Real Server Implementation
+// MARK: - Real Server Implementation (Async Job Polling)
 
 final class ReconstructionService: ReconstructionServiceProtocol {
     private let baseURL: String
@@ -56,6 +56,26 @@ final class ReconstructionService: ReconstructionServiceProtocol {
         useWoundAmbit: Bool,
         generateSplat: Bool
     ) async throws -> ServerResponse {
+        // Step 1: Submit the scan — receive jobId
+        let jobId = try await submitScan(
+            frames: frames,
+            woundPoint: woundPoint,
+            useWoundAmbit: useWoundAmbit,
+            generateSplat: generateSplat
+        )
+
+        // Step 2: Poll for results
+        return try await pollForResults(jobId: jobId)
+    }
+
+    // MARK: - Submit Scan
+
+    private func submitScan(
+        frames: [SelectedFrame],
+        woundPoint: CGPoint?,
+        useWoundAmbit: Bool,
+        generateSplat: Bool
+    ) async throws -> String {
         let url = URL(string: baseURL + ServerConfig.reconstructEndpoint)!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -106,7 +126,7 @@ final class ReconstructionService: ReconstructionServiceProtocol {
 
         progressContinuation?.yield(.uploading(fractionCompleted: 0.3))
 
-        // Retry logic
+        // Retry upload with exponential backoff
         var lastError: Error?
         for attempt in 0..<ServerConfig.maxRetries {
             do {
@@ -116,11 +136,9 @@ final class ReconstructionService: ReconstructionServiceProtocol {
                     throw URLError(.badServerResponse)
                 }
 
-                progressContinuation?.yield(.processing(step: "Parsing response"))
-
-                let serverResponse = try JSONDecoder().decode(ServerResponse.self, from: data)
-                progressContinuation?.yield(.complete(serverResponse))
-                return serverResponse
+                let submitResponse = try JSONDecoder().decode(JobSubmitResponse.self, from: data)
+                progressContinuation?.yield(.uploading(fractionCompleted: 1.0))
+                return submitResponse.jobId
             } catch {
                 lastError = error
                 if attempt < ServerConfig.maxRetries - 1 {
@@ -133,6 +151,93 @@ final class ReconstructionService: ReconstructionServiceProtocol {
         let error = lastError ?? URLError(.unknown)
         progressContinuation?.yield(.failed(error))
         throw error
+    }
+
+    // MARK: - Poll for Results
+
+    private func pollForResults(jobId: String) async throws -> ServerResponse {
+        let pollURL = URL(string: baseURL + ServerConfig.jobsEndpoint + "/\(jobId)")!
+        let startTime = Date()
+
+        progressContinuation?.yield(.processing(step: "Processing scan"))
+
+        while true {
+            // Check timeout
+            let elapsed = Date().timeIntervalSince(startTime)
+            if elapsed > ServerConfig.maxPollDuration {
+                let error = URLError(.timedOut)
+                progressContinuation?.yield(.failed(error))
+                throw error
+            }
+
+            // Wait before polling
+            try await Task.sleep(nanoseconds: UInt64(ServerConfig.pollInterval * 1_000_000_000))
+
+            // Poll
+            var request = URLRequest(url: pollURL)
+            request.timeoutInterval = 10
+
+            if let token = authService.currentToken {
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            }
+
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse,
+                      (200..<300).contains(httpResponse.statusCode) else {
+                    continue // Retry on server error
+                }
+
+                let jobResponse = try JSONDecoder().decode(JobResponse.self, from: data)
+
+                switch jobResponse.status {
+                case .queued:
+                    progressContinuation?.yield(.processing(step: "Queued"))
+
+                case .tier1_processing:
+                    progressContinuation?.yield(.processing(step: "Reconstructing 3D model"))
+
+                case .tier1_complete:
+                    // Tier 1 results available — return immediately
+                    // iOS can show these while Tier 2 continues in background
+                    if let result = jobResponse.result ?? jobResponse.preliminaryResult {
+                        progressContinuation?.yield(.complete(result))
+                        return result
+                    }
+                    progressContinuation?.yield(.processing(step: "Refining measurements"))
+
+                case .tier2_processing:
+                    // If we have preliminary results, return those
+                    if let preliminary = jobResponse.preliminaryResult {
+                        progressContinuation?.yield(.complete(preliminary))
+                        return preliminary
+                    }
+                    progressContinuation?.yield(.processing(step: "Refining measurements"))
+
+                case .complete:
+                    if let result = jobResponse.result {
+                        progressContinuation?.yield(.complete(result))
+                        return result
+                    }
+                    if let preliminary = jobResponse.preliminaryResult {
+                        progressContinuation?.yield(.complete(preliminary))
+                        return preliminary
+                    }
+
+                case .failed:
+                    let errorMessage = jobResponse.error ?? "Processing failed"
+                    let error = NSError(domain: "WoundOS", code: -1,
+                                        userInfo: [NSLocalizedDescriptionKey: errorMessage])
+                    progressContinuation?.yield(.failed(error))
+                    throw error
+                }
+            } catch let error as NSError where error.domain == "WoundOS" {
+                throw error // Re-throw our own errors
+            } catch {
+                // Network error during poll — keep trying
+                continue
+            }
+        }
     }
 }
 
