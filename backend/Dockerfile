@@ -28,16 +28,16 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
 
 COPY requirements-gpu.txt .
-RUN pip install --no-cache-dir -r requirements-gpu.txt
+RUN pip install --no-cache-dir --break-system-packages --ignore-installed -r requirements-gpu.txt
 
 # Install SAM 2 from GitHub (official Meta repo)
-RUN pip install --no-cache-dir git+https://github.com/facebookresearch/sam2.git
+RUN pip install --no-cache-dir --break-system-packages git+https://github.com/facebookresearch/sam2.git
 
 # Install Depth Pro from GitHub (official Apple repo)
-RUN pip install --no-cache-dir git+https://github.com/apple/ml-depth-pro.git
+RUN pip install --no-cache-dir --break-system-packages git+https://github.com/apple/ml-depth-pro.git
 
 # Download and cache ML models at build time
 RUN mkdir -p /models/depth_pro /models/sam2
