@@ -7,6 +7,10 @@ struct ServerConfig {
     static let woundAmbitEndpoint = "/api/v1/woundambit"
     static let uploadTimeout: TimeInterval = 60
     static let maxRetries = 3
+    static let jobStatusEndpoint = "/api/v2/jobs/"
+    static let pollIntervalSeconds: TimeInterval = 3.0
+    static let pollTimeout: TimeInterval = 10
+    static let maxPollAttempts = 40
     static let maxFrames = 50
     static let minFrames = 20
     static let targetFrames = 30
