@@ -2,8 +2,8 @@
 """Download and cache ML model weights for baking into Docker image.
 
 Models:
-- Apple Depth Pro (~1.5 GB)
-- SAM 2.1 Hiera-L (~900 MB)
+- Apple Depth Pro (~1.5 GB) — downloaded via HuggingFace Hub
+- SAM 2.1 Hiera-L (~900 MB) — downloaded via wget in Dockerfile
 """
 
 import os
@@ -12,50 +12,51 @@ import sys
 
 
 def download_depth_pro():
-    """Download Depth Pro model weights."""
-    model_dir = "/models/depth_pro"
-    os.makedirs(model_dir, exist_ok=True)
+    """Download Depth Pro model weights via HuggingFace Hub.
 
-    print("Downloading Depth Pro model...")
-    # Depth Pro auto-downloads on first use via HuggingFace Hub
-    # Trigger the download by importing and creating the model
+    Note: This runs during Docker build (no GPU), so we only download
+    weights — we don't try to load the model onto a device.
+    """
+    print("Downloading Depth Pro model weights...")
     try:
-        import depth_pro
-        model, transform = depth_pro.create_model_and_transforms()
-        print(f"Depth Pro model loaded successfully")
-        del model, transform
+        # Use huggingface_hub to download the checkpoint
+        from huggingface_hub import hf_hub_download
+        checkpoint = hf_hub_download(
+            repo_id="apple/DepthPro",
+            filename="depth_pro.pt",
+            local_dir="/models/depth_pro",
+        )
+        print(f"Depth Pro weights downloaded to {checkpoint}")
+    except ImportError:
+        print("huggingface_hub not installed, trying depth_pro package...")
+        try:
+            # Trigger download through the package's built-in mechanism
+            import depth_pro
+            # Only download, don't create model (needs GPU)
+            print("depth_pro package imported successfully")
+        except Exception as e:
+            print(f"Warning: Could not pre-download Depth Pro: {e}")
+            print("Model will be downloaded on first use at runtime.")
     except Exception as e:
-        print(f"Warning: Could not pre-download Depth Pro: {e}")
-        print("Model will be downloaded on first use.")
-
-
-def download_sam2():
-    """Download SAM 2.1 Hiera-L model weights."""
-    model_dir = "/models/sam2"
-    os.makedirs(model_dir, exist_ok=True)
-
-    checkpoint_url = "https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt"
-    checkpoint_path = os.path.join(model_dir, "sam2.1_hiera_large.pt")
-
-    if not os.path.exists(checkpoint_path):
-        print(f"Downloading SAM 2.1 Hiera-L to {checkpoint_path}...")
-        subprocess.run([
-            "wget", "-q", "--show-progress",
-            "-O", checkpoint_path,
-            checkpoint_url,
-        ], check=True)
-        print(f"SAM 2.1 downloaded ({os.path.getsize(checkpoint_path) / 1e9:.1f} GB)")
-    else:
-        print(f"SAM 2.1 already exists at {checkpoint_path}")
+        print(f"Warning: Depth Pro download failed: {e}")
+        print("Model will be downloaded on first use at runtime.")
 
 
 def main():
     print("=== Downloading ML models for WoundOS V2 ===")
 
-    download_sam2()
+    # SAM 2 checkpoint is downloaded via wget in Dockerfile
+    sam2_path = "/models/sam2/sam2.1_hiera_large.pt"
+    if os.path.exists(sam2_path):
+        size_gb = os.path.getsize(sam2_path) / 1e9
+        print(f"SAM 2.1 checkpoint: {sam2_path} ({size_gb:.1f} GB)")
+    else:
+        print(f"SAM 2.1 not found at {sam2_path} — will be downloaded separately")
+
+    # Download Depth Pro
     download_depth_pro()
 
-    print("\n=== All models downloaded ===")
+    print("\n=== Model download complete ===")
 
 
 if __name__ == "__main__":

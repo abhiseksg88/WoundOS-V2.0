@@ -9,8 +9,8 @@ torchvision==0.19.0
 # 3D processing
 open3d==0.18.0
 
-# SAM 2
-segment-anything-2==1.0
+# SAM 2 — installed from GitHub in Dockerfile (not PyPI)
+# pip install git+https://github.com/facebookresearch/sam2.git
 
-# Depth Pro (Apple)
-# Installed from git: pip install git+https://github.com/apple/ml-depth-pro.git
+# Depth Pro — installed from GitHub in Dockerfile (not PyPI)
+# pip install git+https://github.com/apple/ml-depth-pro.git

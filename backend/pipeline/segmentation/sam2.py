@@ -5,6 +5,7 @@ Supports point prompts (from iOS wound_point) and automatic mode.
 """
 
 import logging
+import os
 
 import cv2
 import numpy as np
@@ -27,9 +28,14 @@ class SAM2Segmenter(BaseSegmenter):
         from sam2.sam2_image_predictor import SAM2ImagePredictor
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # SAM 2 config is bundled in the installed package
+        # build_sam2 looks for configs relative to the sam2 package directory
+        checkpoint = os.path.join(settings.sam2_model_path, settings.sam2_checkpoint)
+
         model = build_sam2(
-            settings.sam2_config,
-            settings.sam2_checkpoint,
+            config_file=settings.sam2_config,
+            ckpt_path=checkpoint,
             device=self.device,
         )
         self.predictor = SAM2ImagePredictor(model)

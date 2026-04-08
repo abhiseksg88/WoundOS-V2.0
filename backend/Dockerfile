@@ -7,9 +7,12 @@ FROM nvidia/cuda:12.2.0-devel-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 
-# System dependencies
+# System dependencies + Python 3.11 from deadsnakes PPA
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 python3.11-venv python3-pip python3.11-dev \
+    software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 python3.11-venv python3.11-dev python3.11-distutils \
     git cmake build-essential \
     libgl1-mesa-glx libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 \
     libboost-all-dev libcgal-dev libeigen3-dev libflann-dev \
@@ -18,9 +21,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Make python3.11 the default
+# Make python3.11 the default and install pip
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
-    update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
+    update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 && \
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
 
 # Install COLMAP from source (for CUDA support)
 RUN git clone https://github.com/colmap/colmap.git /tmp/colmap && \
@@ -34,9 +38,6 @@ RUN git clone https://github.com/colmap/colmap.git /tmp/colmap && \
     make install && \
     rm -rf /tmp/colmap
 
-# Upgrade pip
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-
 # Install Python dependencies
 WORKDIR /app
 
@@ -46,15 +47,23 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY requirements-gpu.txt .
 RUN pip install --no-cache-dir -r requirements-gpu.txt
 
-# Install Depth Pro from git
+# Install SAM 2 from GitHub (official Meta repo)
+RUN pip install --no-cache-dir git+https://github.com/facebookresearch/sam2.git
+
+# Install Depth Pro from GitHub (official Apple repo)
 RUN pip install --no-cache-dir git+https://github.com/apple/ml-depth-pro.git
 
 # Download and cache ML models at build time
 RUN mkdir -p /models/depth_pro /models/sam2
 
-# Download Depth Pro weights
+# Download SAM 2 checkpoint
+RUN wget -q --show-progress \
+    -O /models/sam2/sam2.1_hiera_large.pt \
+    "https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt"
+
+# Download Depth Pro weights (try at build time, fallback to runtime)
 COPY scripts/download_models.py /tmp/download_models.py
-RUN python3 /tmp/download_models.py && rm /tmp/download_models.py
+RUN python3 /tmp/download_models.py || echo "Depth Pro will download at runtime" && rm -f /tmp/download_models.py
 
 # Copy application code
 COPY . .
