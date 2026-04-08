@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # GCP
-    gcp_project_id: str = "wound-ai-api"
+    gcp_project_id: str = "careplix-woundos"
     gcp_project_number: str = "333499614175"
     gcp_region: str = "us-central1"
 

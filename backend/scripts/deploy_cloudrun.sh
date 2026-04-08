@@ -1,39 +1,53 @@
 #!/usr/bin/env bash
-# Deploy WoundOS V2 Backend to GCP Cloud Run
-# Deploys both API gateway (CPU) and GPU worker
+# Deploy WoundOS V2 API Gateway to Cloud Run (CPU-only)
+#
+# The API Gateway handles:
+# - Frame uploads (POST /api/v2/reconstruct)
+# - Job polling (GET /api/v2/jobs/{id})
+# - Segmentation proxy (POST /api/v1/segment)
+# - Health checks (GET /health)
+#
+# The GPU Worker runs separately on GCE VM — see deploy_gce_worker.sh
+#
+# Usage:
+#   bash scripts/deploy_cloudrun.sh
 
 set -euo pipefail
 
-PROJECT_ID="${GCP_PROJECT_ID:-wound-ai-api}"
-PROJECT_NUMBER="${GCP_PROJECT_NUMBER:-333499614175}"
+PROJECT_ID="${GCP_PROJECT_ID:-careplix-woundos}"
 REGION="${GCP_REGION:-us-central1}"
 REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/woundos"
+API_IMAGE="${REGISTRY}/api:latest"
 
-echo "=== WoundOS V2 Cloud Run Deployment ==="
-echo "Project: ${PROJECT_ID} (${PROJECT_NUMBER})"
+echo "============================================"
+echo "  WoundOS V2 — API Gateway Deployment"
+echo "============================================"
+echo "Project: ${PROJECT_ID}"
 echo "Region:  ${REGION}"
+echo "Image:   ${API_IMAGE}"
 echo ""
 
-# Create Artifact Registry repository if needed
-echo "Setting up Artifact Registry..."
-gcloud artifacts repositories create woundos \
-    --repository-format=docker \
-    --location="${REGION}" \
-    --project="${PROJECT_ID}" 2>/dev/null || echo "Repository already exists"
+# ─── Step 1: Build API Gateway Image ─────────────────────────
 
-# Configure Docker auth
-gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+echo "=== Step 1: Building API Gateway Image ==="
 
-# ─── Build and deploy API Gateway ───────────────────────────
+gcloud builds submit \
+    --project="${PROJECT_ID}" \
+    --region="${REGION}" \
+    --config=cloudbuild-api.yaml \
+    --substitutions="_IMAGE_TAG=${API_IMAGE}" \
+    .
 
 echo ""
-echo "=== Building API Gateway ==="
-docker build -f Dockerfile.api -t "${REGISTRY}/api:latest" .
-docker push "${REGISTRY}/api:latest"
+echo "✓ API image built and pushed to ${API_IMAGE}"
+echo ""
 
-echo "Deploying API Gateway to Cloud Run..."
+# ─── Step 2: Deploy to Cloud Run ─────────────────────────────
+
+echo "=== Step 2: Deploying to Cloud Run ==="
+
 gcloud run deploy woundos-api \
-    --image="${REGISTRY}/api:latest" \
+    --image="${API_IMAGE}" \
     --region="${REGION}" \
     --project="${PROJECT_ID}" \
     --platform=managed \
@@ -47,41 +61,24 @@ gcloud run deploy woundos-api \
     --set-env-vars="WOUNDOS_WORKER_MODE=api,WOUNDOS_GCP_PROJECT_ID=${PROJECT_ID}" \
     --allow-unauthenticated
 
-# Get API URL
-API_URL=$(gcloud run services describe woundos-api --region="${REGION}" --project="${PROJECT_ID}" --format='value(status.url)')
-echo "API Gateway URL: ${API_URL}"
+# ─── Done ─────────────────────────────────────────────────────
 
-# ─── Build and deploy GPU Worker ────────────────────────────
-
-echo ""
-echo "=== Building GPU Worker ==="
-docker build -f Dockerfile -t "${REGISTRY}/worker:latest" .
-docker push "${REGISTRY}/worker:latest"
-
-echo "Deploying GPU Worker to Cloud Run..."
-gcloud run deploy woundos-worker \
-    --image="${REGISTRY}/worker:latest" \
+API_URL=$(gcloud run services describe woundos-api \
     --region="${REGION}" \
     --project="${PROJECT_ID}" \
-    --platform=managed \
-    --memory=32Gi \
-    --cpu=8 \
-    --gpu=1 \
-    --gpu-type=nvidia-l4 \
-    --min-instances=1 \
-    --max-instances=5 \
-    --concurrency=1 \
-    --port=8080 \
-    --timeout=300 \
-    --no-cpu-throttling \
-    --set-env-vars="WOUNDOS_WORKER_MODE=gpu,WOUNDOS_GCP_PROJECT_ID=${PROJECT_ID},WOUNDOS_ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}" \
-    --command="python3,-m,worker.main" \
-    --no-allow-unauthenticated
+    --format='value(status.url)')
 
 echo ""
-echo "=== Deployment Complete ==="
+echo "============================================"
+echo "  API Gateway Deployment Complete"
+echo "============================================"
 echo ""
-echo "API Gateway: ${API_URL}"
+echo "URL: ${API_URL}"
 echo ""
-echo "Test with:"
+echo "Test:"
 echo "  curl ${API_URL}/health"
+echo ""
+echo "Next: Deploy GPU Worker on GCE VM:"
+echo "  export ANTHROPIC_API_KEY=sk-ant-xxx"
+echo "  bash scripts/deploy_gce_worker.sh"
+echo ""
