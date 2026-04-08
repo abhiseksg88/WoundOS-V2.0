@@ -25,12 +25,10 @@ async def lifespan(app: FastAPI):
         settings.api_version,
     )
 
-    # If running in GPU or all mode, preload ML models
+    # Models are loaded lazily on first request (not at startup)
+    # This ensures the HTTP server starts quickly and passes Cloud Run health checks
     if settings.worker_mode in ("gpu", "all"):
-        logger.info("Preloading ML models...")
-        from pipeline.orchestrator import get_orchestrator
-        get_orchestrator()
-        logger.info("ML models loaded.")
+        logger.info("GPU worker mode — ML models will load on first request")
 
     yield
 
