@@ -7,7 +7,7 @@ FROM nvidia/cuda:12.2.0-devel-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 
-# System dependencies + Python 3.11 from deadsnakes PPA
+# System dependencies + Python 3.11 from deadsnakes PPA + COLMAP from apt
 RUN apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common \
     && add-apt-repository ppa:deadsnakes/ppa \
@@ -15,9 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 python3.11-venv python3.11-dev python3.11-distutils \
     git cmake build-essential \
     libgl1-mesa-glx libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 \
-    libboost-all-dev libcgal-dev libeigen3-dev libflann-dev \
-    libfreeimage-dev libgoogle-glog-dev libgtest-dev \
-    libsqlite3-dev libglew-dev qtbase5-dev libqt5opengl5-dev \
+    colmap \
     wget curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -25,18 +23,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 && \
     curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
-
-# Install COLMAP from source (for CUDA support)
-RUN git clone https://github.com/colmap/colmap.git /tmp/colmap && \
-    cd /tmp/colmap && \
-    git checkout 3.9.1 && \
-    mkdir build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release \
-             -DCMAKE_CUDA_ARCHITECTURES="70;75;80;86;89;90" \
-             -DCUDA_ENABLED=ON && \
-    make -j$(nproc) && \
-    make install && \
-    rm -rf /tmp/colmap
 
 # Install Python dependencies
 WORKDIR /app
@@ -56,7 +42,7 @@ RUN pip install --no-cache-dir git+https://github.com/apple/ml-depth-pro.git
 # Download and cache ML models at build time
 RUN mkdir -p /models/depth_pro /models/sam2
 
-# Download SAM 2 checkpoint
+# Download SAM 2 checkpoint (~900 MB)
 RUN wget -q --show-progress \
     -O /models/sam2/sam2.1_hiera_large.pt \
     "https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt"
