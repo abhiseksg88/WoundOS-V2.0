@@ -11,6 +11,8 @@ struct DashboardView: View {
     @State private var showResults = false
     @State private var capturedFrames: [SelectedFrame] = []
     @State private var serverResponse: ServerResponse?
+    @State private var processingVM: ProcessingViewModel?
+    @State private var resultsVM: ResultsViewModel?
 
     var body: some View {
         NavigationStack {
@@ -38,25 +40,32 @@ struct DashboardView: View {
                 self.capturedFrames = selectedFrames
                 showCapture = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    let vm = ProcessingViewModel(useMock: useMockServer)
+                    vm.onGoldReady = { gold in
+                        DispatchQueue.main.async {
+                            self.serverResponse = gold
+                            self.resultsVM?.updateWithGoldResults(gold)
+                        }
+                    }
+                    self.processingVM = vm
                     showProcessing = true
                 }
             }
         }
         .fullScreenCover(isPresented: $showProcessing) {
             NavigationStack {
-                ProcessingView(
-                    viewModel: ProcessingViewModel(useMock: useMockServer),
-                    frames: capturedFrames
-                ) { response in
-                    self.serverResponse = response
-                    showProcessing = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        showBoundary = true
+                if let vm = processingVM {
+                    ProcessingView(viewModel: vm, frames: capturedFrames) { response in
+                        self.serverResponse = response
+                        showProcessing = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showBoundary = true
+                        }
                     }
-                }
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button("Cancel") { showProcessing = false }
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Cancel") { showProcessing = false; processingVM = nil }
+                        }
                     }
                 }
             }
@@ -96,13 +105,17 @@ struct DashboardView: View {
         .fullScreenCover(isPresented: $showResults) {
             NavigationStack {
                 if let response = serverResponse {
-                    ResultsView(viewModel: ResultsViewModel(response: response))
+                    let vm = ResultsViewModel(response: response)
+                    ResultsView(viewModel: vm)
+                        .onAppear { self.resultsVM = vm }
                         .toolbar {
                             ToolbarItem(placement: .navigationBarLeading) {
                                 Button("Done") {
                                     showResults = false
                                     serverResponse = nil
                                     capturedFrames = []
+                                    processingVM = nil
+                                    resultsVM = nil
                                     viewModel.loadMockData()
                                 }
                             }

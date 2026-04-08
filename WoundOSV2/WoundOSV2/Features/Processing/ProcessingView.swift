@@ -26,8 +26,8 @@ struct ProcessingView: View {
         .onAppear {
             viewModel.startProcessing(frames: frames)
         }
-        .onChange(of: viewModel.isComplete) { complete in
-            if complete, let response = viewModel.serverResponse {
+        .onChange(of: viewModel.isPreliminaryReady) { ready in
+            if ready, let response = viewModel.preliminaryResponse {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     onComplete?(response)
                 }
@@ -102,9 +102,19 @@ struct ProcessingView: View {
 
     // MARK: - Caption
     private var caption: some View {
-        Text("This usually takes 5–10 seconds")
-            .font(WOSTypography.footnote)
-            .foregroundColor(WOSColors.textTertiary)
+        Group {
+            if viewModel.isPreliminaryReady {
+                Text("Preliminary results ready")
+                    .foregroundColor(WOSColors.green)
+            } else if viewModel.jobId != nil {
+                Text("Processing on server... \(Int(viewModel.serverProgress * 100))%")
+                    .foregroundColor(WOSColors.textTertiary)
+            } else {
+                Text("Uploading to server...")
+                    .foregroundColor(WOSColors.textTertiary)
+            }
+        }
+        .font(WOSTypography.footnote)
     }
 
     // MARK: - Error
