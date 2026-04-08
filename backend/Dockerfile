@@ -11,7 +11,7 @@ ENV PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 python3.11-venv python3-pip python3.11-dev \
     git cmake build-essential \
-    libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender1 \
+    libgl1-mesa-glx libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 \
     libboost-all-dev libcgal-dev libeigen3-dev libflann-dev \
     libfreeimage-dev libgoogle-glog-dev libgtest-dev \
     libsqlite3-dev libglew-dev qtbase5-dev libqt5opengl5-dev \
