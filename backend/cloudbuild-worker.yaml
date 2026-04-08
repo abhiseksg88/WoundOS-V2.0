@@ -15,6 +15,5 @@ substitutions:
   _IMAGE_TAG: 'us-central1-docker.pkg.dev/${PROJECT_ID}/woundos/worker:latest'
 timeout: 3600s
 options:
-  machineType: 'E2_HIGHCPU_32'
   logging: CLOUD_LOGGING_ONLY
   diskSizeGb: 200
