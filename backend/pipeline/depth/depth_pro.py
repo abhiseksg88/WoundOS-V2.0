@@ -14,6 +14,7 @@ import numpy as np
 import torch
 from PIL import Image
 
+from app.config import settings
 from pipeline.depth.base import BaseDepthEstimator
 
 logger = logging.getLogger("woundos.depth.depth_pro")
@@ -27,11 +28,50 @@ class DepthProEstimator(BaseDepthEstimator):
     def __init__(self):
         logger.info("Loading Depth Pro model...")
         import depth_pro
+        from depth_pro import DepthProConfig
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model, self.transform = depth_pro.create_model_and_transforms(device=self.device)
+
+        # Depth Pro defaults to ./checkpoints/depth_pro.pt which doesn't exist
+        # in our Docker container. Use HuggingFace Hub cached path or our
+        # pre-downloaded path.
+        checkpoint_path = self._find_checkpoint()
+        logger.info("Depth Pro checkpoint: %s", checkpoint_path)
+
+        config = DepthProConfig(
+            patch_encoder_preset="dinov2l16_384",
+            image_encoder_preset="dinov2l16_384",
+            checkpoint_uri=checkpoint_path,
+            decoder_features=256,
+            use_fov_head=True,
+            fov_encoder_preset="dinov2l16_384",
+        )
+
+        self.model, self.transform = depth_pro.create_model_and_transforms(
+            config=config,
+            device=self.device,
+        )
         self.model.eval()
         logger.info("Depth Pro loaded on %s", self.device)
+
+    def _find_checkpoint(self) -> str:
+        """Find Depth Pro checkpoint from local paths or HuggingFace cache."""
+        import os
+
+        # Check pre-downloaded locations
+        candidates = [
+            os.path.join(settings.depth_pro_model_path, "depth_pro.pt"),
+            "/models/depth_pro/depth_pro.pt",
+            "./checkpoints/depth_pro.pt",
+        ]
+        for path in candidates:
+            if os.path.exists(path):
+                return path
+
+        # Download from HuggingFace Hub
+        logger.info("Depth Pro checkpoint not found locally, downloading from HuggingFace...")
+        from huggingface_hub import hf_hub_download
+        return hf_hub_download(repo_id="apple/DepthPro", filename="depth_pro.pt")
 
     @torch.no_grad()
     def estimate_depth(
