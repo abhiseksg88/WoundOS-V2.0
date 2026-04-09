@@ -8,8 +8,8 @@ struct ContentView: View {
     @State private var showResults = false
     @State private var capturedFrames: [SelectedFrame] = []
     @State private var serverResponse: ServerResponse?
-    @State private var processingVM: ProcessingViewModel?
-    @State private var resultsVM: ResultsViewModel?
+    @State private var processingViewModel: ProcessingViewModel?
+    @State private var resultsViewModel: ResultsViewModel?
     @AppStorage("useMockServer") private var useMockServer: Bool = true
 
     var body: some View {
@@ -50,22 +50,17 @@ struct ContentView: View {
                 self.capturedFrames = selectedFrames
                 showCapture = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    let vm = ProcessingViewModel(useMock: useMockServer)
-                    vm.onGoldReady = { gold in
-                        DispatchQueue.main.async {
-                            self.serverResponse = gold
-                            self.resultsVM?.updateWithGoldResults(gold)
-                        }
-                    }
-                    self.processingVM = vm
-                    showProcessing = true
+                    startProcessing()
                 }
             }
         }
         .fullScreenCover(isPresented: $showProcessing) {
             NavigationStack {
-                if let vm = processingVM {
-                    ProcessingView(viewModel: vm, frames: capturedFrames) { response in
+                if let vm = processingViewModel {
+                    ProcessingView(
+                        viewModel: vm,
+                        frames: capturedFrames
+                    ) { response in
                         self.serverResponse = response
                         showProcessing = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -76,7 +71,7 @@ struct ContentView: View {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button("Cancel") {
                                 showProcessing = false
-                                processingVM = nil
+                                processingViewModel = nil
                             }
                         }
                     }
@@ -87,12 +82,12 @@ struct ContentView: View {
             NavigationStack {
                 if let response = serverResponse {
                     let annotatedImage: UIImage? = {
-                        guard let data = Data(base64Encoded: response.annotatedImageBase64) else { return nil }
-                        return UIImage(data: data)
+                        guard let d = Data(base64Encoded: response.annotatedImageBase64) else { return nil }
+                        return UIImage(data: d)
                     }()
                     let maskImage: UIImage? = {
-                        guard let data = Data(base64Encoded: response.woundMaskBase64) else { return nil }
-                        return UIImage(data: data)
+                        guard let d = Data(base64Encoded: response.woundMaskBase64) else { return nil }
+                        return UIImage(data: d)
                     }()
                     BoundaryEditView(viewModel: BoundaryViewModel(woundImage: annotatedImage, maskImage: maskImage))
                         .toolbar {
@@ -112,8 +107,6 @@ struct ContentView: View {
                                 }
                             }
                         }
-                } else {
-                    Text("No data available")
                 }
             }
         }
@@ -122,21 +115,35 @@ struct ContentView: View {
                 if let response = serverResponse {
                     let vm = ResultsViewModel(response: response)
                     ResultsView(viewModel: vm)
-                        .onAppear { self.resultsVM = vm }
+                        .onAppear {
+                            self.resultsViewModel = vm
+                        }
                         .toolbar {
                             ToolbarItem(placement: .navigationBarLeading) {
                                 Button("Done") {
                                     showResults = false
                                     serverResponse = nil
                                     capturedFrames = []
-                                    processingVM = nil
-                                    resultsVM = nil
+                                    processingViewModel = nil
+                                    resultsViewModel = nil
                                 }
                             }
                         }
                 }
             }
         }
+    }
+
+    private func startProcessing() {
+        let vm = ProcessingViewModel(useMock: useMockServer)
+        vm.onGoldReady = { gold in
+            DispatchQueue.main.async {
+                self.serverResponse = gold
+                self.resultsViewModel?.updateWithGoldResults(gold)
+            }
+        }
+        self.processingViewModel = vm
+        showProcessing = true
     }
 }
 
