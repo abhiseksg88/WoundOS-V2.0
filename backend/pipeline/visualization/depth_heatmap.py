@@ -47,11 +47,8 @@ def generate_depth_heatmap(
 
     # Blend with original (70% heatmap, 30% original for wound area)
     result = img.copy()
-    result[wound_region] = cv2.addWeighted(
-        overlay[wound_region], 0.7,
-        img[wound_region], 0.3,
-        0,
-    )
+    blended = cv2.addWeighted(overlay, 0.7, img, 0.3, 0)
+    result[wound_region] = blended[wound_region]
 
     # Draw color legend bar at bottom
     legend_h = 30
