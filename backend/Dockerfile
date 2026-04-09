@@ -34,7 +34,13 @@ COPY requirements-gpu.txt .
 RUN pip install --no-cache-dir --break-system-packages --ignore-installed -r requirements-gpu.txt
 
 # Install SAM 2 from GitHub (official Meta repo)
-RUN pip install --no-cache-dir --break-system-packages git+https://github.com/facebookresearch/sam2.git
+# MUST use editable install (-e) for Hydra config discovery to work.
+# Non-editable pip install breaks Hydra's pkg://sam2 config path.
+# See: https://github.com/facebookresearch/sam2/issues/26
+RUN git clone https://github.com/facebookresearch/sam2.git /tmp/sam2 && \
+    cd /tmp/sam2 && \
+    pip install --break-system-packages -e . && \
+    cd /app
 
 # Install Depth Pro from GitHub (official Apple repo)
 RUN pip install --no-cache-dir --break-system-packages git+https://github.com/apple/ml-depth-pro.git

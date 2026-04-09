@@ -27,29 +27,39 @@ class SAM2Segmenter(BaseSegmenter):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         checkpoint = os.path.join(settings.sam2_model_path, settings.sam2_checkpoint)
 
-        from sam2.build_sam import build_sam2
         from sam2.sam2_image_predictor import SAM2ImagePredictor
-        import sam2
 
-        # The sam2 package uses Hydra for config. We need to point Hydra's
-        # config search path to the sam2 package's configs directory.
-        sam2_pkg_dir = os.path.dirname(sam2.__file__)
-        configs_dir = os.path.join(sam2_pkg_dir, "configs")
-
-        # Inject the sam2 configs dir into Hydra's search path
-        from hydra.core.global_hydra import GlobalHydra
-        GlobalHydra.instance().clear()
-
-        from hydra import initialize_config_dir
-        with initialize_config_dir(config_dir=configs_dir, version_base="1.2"):
-            model = build_sam2(
-                config_file="sam2.1/sam2.1_hiera_l",
-                ckpt_path=checkpoint,
+        # Use from_pretrained which bypasses Hydra config entirely.
+        # This is the recommended approach for pip-installed sam2 packages
+        # (build_sam2 with Hydra fails on non-editable installs — known issue
+        # facebookresearch/sam2#26, #81, #444).
+        #
+        # from_pretrained uses build_sam2_hf() internally and handles
+        # config + weights automatically via HuggingFace Hub.
+        try:
+            logger.info("Loading SAM 2.1 via from_pretrained...")
+            self.predictor = SAM2ImagePredictor.from_pretrained(
+                "facebook/sam2.1-hiera-large",
                 device=self.device,
             )
+            logger.info("SAM 2.1 loaded via from_pretrained on %s", self.device)
+        except Exception as e:
+            logger.warning("from_pretrained failed: %s. Trying local checkpoint...", e)
+            # Fallback: try build_sam2 with local checkpoint + editable-style config
+            from sam2.build_sam import build_sam2
+            from hydra.core.global_hydra import GlobalHydra
+            if GlobalHydra.instance().is_initialized():
+                GlobalHydra.instance().clear()
 
-        self.predictor = SAM2ImagePredictor(model)
-        logger.info("SAM 2 loaded on %s", self.device)
+            from hydra import initialize_config_module
+            with initialize_config_module(config_module="sam2", version_base="1.2"):
+                model = build_sam2(
+                    config_file="sam2_hiera_l",
+                    ckpt_path=checkpoint,
+                    device=self.device,
+                )
+            self.predictor = SAM2ImagePredictor(model)
+            logger.info("SAM 2 loaded via build_sam2 fallback on %s", self.device)
 
     def segment(
         self,
