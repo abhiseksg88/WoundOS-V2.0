@@ -75,16 +75,24 @@ class PipelineOrchestrator:
             logger.info("Tier 1 complete for job %s in %dms", job_id, tier1_time)
 
             # ===== TIER 2: COLMAP gold standard (30-60s) =====
-            firestore.update_job_status(job_id, JobStatus.TIER2_PROCESSING, tier=2, progress=0.6)
+            # COLMAP patch_match_stereo requires CUDA-compiled binary.
+            # apt-installed COLMAP is CPU-only and doesn't support it.
+            # If Tier 2 fails, Tier 1 results are still valid.
+            try:
+                firestore.update_job_status(job_id, JobStatus.TIER2_PROCESSING, tier=2, progress=0.6)
 
-            tier2_result, delta = self._run_tier2(
-                job_id, frames, poses, intrinsics, tier1_result, wound_point
-            )
-            tier2_time = int((time.time() - start_time) * 1000)
-            tier2_result["processingTimeMs"] = tier2_time
+                tier2_result, delta = self._run_tier2(
+                    job_id, frames, poses, intrinsics, tier1_result, wound_point
+                )
+                tier2_time = int((time.time() - start_time) * 1000)
+                tier2_result["processingTimeMs"] = tier2_time
 
-            firestore.update_job_final_result(job_id, tier2_result, delta)
-            logger.info("Tier 2 complete for job %s in %dms", job_id, tier2_time)
+                firestore.update_job_final_result(job_id, tier2_result, delta)
+                logger.info("Tier 2 complete for job %s in %dms", job_id, tier2_time)
+            except Exception as e:
+                logger.warning("Tier 2 (COLMAP) failed for job %s: %s. Tier 1 results remain.", job_id, e)
+                # Promote Tier 1 result as final result
+                firestore.update_job_final_result(job_id, tier1_result, measurement_delta=None)
 
             # ===== TIER 3: Gaussian Splatting (optional) =====
             if generate_splat:
