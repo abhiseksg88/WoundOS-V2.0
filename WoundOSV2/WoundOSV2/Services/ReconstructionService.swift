@@ -30,6 +30,10 @@ protocol ReconstructionServiceProtocol {
     ) async throws -> ServerResponse
 
     func progressStream() -> AsyncStream<UploadProgress>
+
+    /// Continue polling for Tier 2 gold results after Tier 1 was returned.
+    /// Returns nil if already complete, or the gold ServerResponse when available.
+    func pollForGoldResults(jobId: String) async throws -> ServerResponse?
 }
 
 // MARK: - Real Server Implementation (Async Job Polling)
@@ -38,6 +42,7 @@ final class ReconstructionService: ReconstructionServiceProtocol {
     private let baseURL: String
     private let authService: AuthService
     private var progressContinuation: AsyncStream<UploadProgress>.Continuation?
+    private(set) var lastJobId: String?
 
     init(baseURL: String = ServerConfig.defaultBaseURL, authService: AuthService = .shared) {
         self.baseURL = baseURL
@@ -138,6 +143,7 @@ final class ReconstructionService: ReconstructionServiceProtocol {
 
                 let submitResponse = try JSONDecoder().decode(JobSubmitResponse.self, from: data)
                 progressContinuation?.yield(.uploading(fractionCompleted: 1.0))
+                self.lastJobId = submitResponse.jobId
                 return submitResponse.jobId
             } catch {
                 lastError = error
@@ -235,6 +241,42 @@ final class ReconstructionService: ReconstructionServiceProtocol {
                 throw error // Re-throw our own errors
             } catch {
                 // Network error during poll — keep trying
+                continue
+            }
+        }
+    }
+}
+
+    // MARK: - Background Gold Polling
+
+    func pollForGoldResults(jobId: String) async throws -> ServerResponse? {
+        let pollURL = URL(string: baseURL + ServerConfig.jobsEndpoint + "/\(jobId)")!
+        let startTime = Date()
+
+        while true {
+            let elapsed = Date().timeIntervalSince(startTime)
+            if elapsed > ServerConfig.maxPollDuration { return nil }
+
+            try await Task.sleep(nanoseconds: UInt64(ServerConfig.pollInterval * 1_000_000_000))
+
+            var request = URLRequest(url: pollURL)
+            request.timeoutInterval = 10
+            if let token = authService.currentToken {
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            }
+
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse,
+                      (200..<300).contains(httpResponse.statusCode) else { continue }
+
+                let jobResponse = try JSONDecoder().decode(JobResponse.self, from: data)
+
+                if jobResponse.status == .complete, let result = jobResponse.result {
+                    return result
+                }
+                if jobResponse.status == .failed { return nil }
+            } catch {
                 continue
             }
         }
@@ -358,6 +400,25 @@ final class MockReconstructionService: ReconstructionServiceProtocol {
             UIBezierPath(ovalIn: CGRect(x: 120, y: 80, width: 160, height: 140)).fill()
         }
         return image.jpegData(compressionQuality: 0.8)?.base64EncodedString() ?? ""
+    }
+
+    func pollForGoldResults(jobId: String) async throws -> ServerResponse? {
+        // Mock: simulate gold results arriving 4 seconds after Tier 1
+        try await Task.sleep(nanoseconds: 4_000_000_000)
+        return ServerResponse(
+            measurements: WoundMeasurement(
+                areaCm2: 12.4, maxDepthMm: 5.2, avgDepthMm: 2.8,
+                volumeMl: 3.1, lengthMm: 45.0, widthMm: 32.0, perimeterMm: 128.5
+            ),
+            annotatedImageBase64: generateMockAnnotatedImage(),
+            depthHeatmapBase64: generateMockHeatmap(),
+            woundMaskBase64: generateMockMask(),
+            meshOBJData: nil,
+            splatURL: nil,
+            clinicalSummary: "Stage III pressure injury on sacrum measuring 12.4 cm\u{00B2}. Wound bed shows 70% granulation tissue with 30% slough. Moderate serous exudate noted. Periwound skin intact with mild erythema. Undermining detected at 2 o'clock extending 8mm. Gold-standard COLMAP reconstruction confirms measurements within 3% of preliminary.",
+            pushScore: PUSHScore(areaScore: 9, exudateScore: 2, surfaceTypeScore: 3),
+            processingTimeMs: 58400
+        )
     }
 }
 

@@ -9,6 +9,7 @@ final class SplatDownloader: ObservableObject {
     @Published var localURL: URL?
 
     private var downloadTask: URLSessionDownloadTask?
+    private var progressObservation: NSKeyValueObservation?
 
     func download(from urlString: String, scanId: UUID) {
         guard let url = URL(string: urlString) else {
@@ -25,6 +26,7 @@ final class SplatDownloader: ObservableObject {
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 self.isDownloading = false
+                self.progressObservation = nil
 
                 if let downloadError = downloadError {
                     self.error = downloadError
@@ -36,7 +38,6 @@ final class SplatDownloader: ObservableObject {
                     return
                 }
 
-                // Move to permanent location
                 let scanDir = ScanStore.scanDirectory(for: scanId)
                 let destURL = scanDir.appendingPathComponent("wound.splat")
 
@@ -53,13 +54,12 @@ final class SplatDownloader: ObservableObject {
             }
         }
 
-        // Observe progress
-        let observation = task.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
+        // Retain the observation as an instance property
+        progressObservation = task.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
             DispatchQueue.main.async {
                 self?.progress = progress.fractionCompleted
             }
         }
-        _ = observation // Keep alive
 
         task.resume()
         downloadTask = task
@@ -67,6 +67,7 @@ final class SplatDownloader: ObservableObject {
 
     func cancel() {
         downloadTask?.cancel()
+        progressObservation = nil
         isDownloading = false
     }
 }

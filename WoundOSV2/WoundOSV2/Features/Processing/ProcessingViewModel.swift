@@ -46,8 +46,12 @@ final class ProcessingViewModel: ObservableObject {
     @Published var serverResponse: ServerResponse?
     @Published var wasQueued = false
 
+    /// Called when Tier 2 gold results arrive in the background
+    var onGoldReady: ((ServerResponse) -> Void)?
+
     private let useMock: Bool
     private var cancellables = Set<AnyCancellable>()
+    private var service: ReconstructionServiceProtocol?
 
     init(useMock: Bool = true) {
         self.useMock = useMock
@@ -59,15 +63,16 @@ final class ProcessingViewModel: ObservableObject {
     func startProcessing(frames: [SelectedFrame]) {
         Task { @MainActor in
             do {
-                let service: ReconstructionServiceProtocol = useMock
+                let svc: ReconstructionServiceProtocol = useMock
                     ? MockReconstructionService()
                     : ReconstructionService()
+                self.service = svc
 
                 // Step 1: Upload frames to server
                 await advanceToStep(.upload)
 
                 // Listen to progress stream for real-time updates
-                let progressStream = service.progressStream()
+                let progressStream = svc.progressStream()
                 let progressTask = Task {
                     for await progress in progressStream {
                         await MainActor.run {
@@ -97,7 +102,7 @@ final class ProcessingViewModel: ObservableObject {
                 }
 
                 // Step 2: Upload + poll (ReconstructionService handles the async flow)
-                let response = try await service.uploadScan(
+                let response = try await svc.uploadScan(
                     frames: frames,
                     woundPoint: nil,
                     useWoundAmbit: true,
@@ -110,6 +115,9 @@ final class ProcessingViewModel: ObservableObject {
 
                 self.serverResponse = response
                 self.isComplete = true
+
+                // Start background polling for Tier 2 gold results
+                self.startGoldPolling(service: svc)
             } catch {
                 // Check if we should enqueue for offline upload
                 if !OfflineScanQueue.shared.isOnline && !useMock {
@@ -163,5 +171,31 @@ final class ProcessingViewModel: ObservableObject {
         stepStates[step] = .active
         currentStep = step
         overallProgress = Double(step.rawValue + 1) / Double(ProcessingStep.allCases.count)
+    }
+
+    private func startGoldPolling(service: ReconstructionServiceProtocol) {
+        guard let realService = service as? ReconstructionService,
+              let jobId = realService.lastJobId else {
+            // For mock: simulate gold arriving
+            if let mockService = service as? MockReconstructionService {
+                Task {
+                    if let gold = try? await mockService.pollForGoldResults(jobId: "") {
+                        await MainActor.run {
+                            self.onGoldReady?(gold)
+                        }
+                    }
+                }
+            }
+            return
+        }
+
+        Task {
+            if let gold = try? await realService.pollForGoldResults(jobId: jobId) {
+                await MainActor.run {
+                    self.serverResponse = gold
+                    self.onGoldReady?(gold)
+                }
+            }
+        }
     }
 }

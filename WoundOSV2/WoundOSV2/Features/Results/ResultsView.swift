@@ -11,8 +11,31 @@ struct ResultsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: WOSSpacing.xxl) {
+                if viewModel.isRefining {
+                    HStack(spacing: WOSSpacing.sm) {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Refining measurements with 3D reconstruction...")
+                            .font(WOSTypography.footnote)
+                            .foregroundColor(WOSColors.textSecondary)
+                        Spacer()
+                        Text("Preliminary")
+                            .font(WOSTypography.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(WOSColors.orange)
+                            .padding(.horizontal, WOSSpacing.sm)
+                            .padding(.vertical, WOSSpacing.xs)
+                            .background(WOSColors.orange.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+                    .padding(WOSSpacing.md)
+                    .background(WOSColors.yellow.opacity(0.08))
+                    .cornerRadius(WOSRadius.sm)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
                 annotatedImageSection
                 metricsGrid
+                    .animation(.easeInOut(duration: 0.4), value: viewModel.measurements)
                 depthHeatmapSection
                 clinicalSummarySection
                 pushScoreSection
@@ -54,7 +77,7 @@ struct ResultsView: View {
         }
         .sheet(isPresented: $showCompare) {
             NavigationStack {
-                LongitudinalCompareView()
+                LongitudinalCompareView(scans: viewModel.patient?.wounds ?? MockDataProvider.allScans.filter { $0.status == .complete })
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button("Close") { showCompare = false }

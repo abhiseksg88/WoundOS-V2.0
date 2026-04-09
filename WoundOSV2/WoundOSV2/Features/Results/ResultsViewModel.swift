@@ -76,9 +76,50 @@ final class ResultsViewModel: ObservableObject {
         self.scan = newScan
     }
 
+    @Published var isRefining: Bool = true
+
     func saveToStore() {
         guard let scan = scan else { return }
         ScanStore.shared.saveScan(scan)
+    }
+
+    func updateWithGoldResults(_ gold: ServerResponse) {
+        self.isRefining = false
+        self.measurements = gold.measurements
+        self.clinicalSummary = gold.clinicalSummary
+        self.pushScore = gold.pushScore
+
+        if let data = Data(base64Encoded: gold.annotatedImageBase64) {
+            self.annotatedImage = UIImage(data: data)
+        }
+        if let data = Data(base64Encoded: gold.depthHeatmapBase64) {
+            self.depthHeatmap = UIImage(data: data)
+        }
+        if let data = Data(base64Encoded: gold.woundMaskBase64) {
+            self.woundMask = UIImage(data: data)
+        }
+
+        // Re-persist with gold data
+        if var scan = self.scan {
+            scan.measurements = gold.measurements
+            scan.pushScore = gold.pushScore
+            scan.clinicalSummary = gold.clinicalSummary
+
+            let scanDir = ScanStore.scanDirectory(for: scan.id)
+            if let imgData = Data(base64Encoded: gold.annotatedImageBase64) {
+                try? imgData.write(to: scanDir.appendingPathComponent("annotated.jpg"))
+            }
+            if let imgData = Data(base64Encoded: gold.depthHeatmapBase64) {
+                try? imgData.write(to: scanDir.appendingPathComponent("heatmap.jpg"))
+            }
+            if let meshData = gold.meshOBJData {
+                try? meshData.write(to: scanDir.appendingPathComponent("mesh.obj"))
+                scan.meshOBJPath = "scans/\(scan.id.uuidString)/mesh.obj"
+            }
+
+            self.scan = scan
+            saveToStore()
+        }
     }
 
     func generatePDF() {
