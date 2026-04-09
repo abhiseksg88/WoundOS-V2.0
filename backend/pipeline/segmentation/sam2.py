@@ -24,50 +24,29 @@ class SAM2Segmenter(BaseSegmenter):
 
     def __init__(self):
         logger.info("Loading SAM 2 model...")
-        from sam2.build_sam import build_sam2
-        from sam2.sam2_image_predictor import SAM2ImagePredictor
-
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        # SAM 2 checkpoint path
         checkpoint = os.path.join(settings.sam2_model_path, settings.sam2_checkpoint)
 
-        # The config name must match what's in the sam2 package's config directory.
-        # Try multiple known config names for compatibility across sam2 versions.
-        config_names = [
-            "sam2.1/sam2.1_hiera_l",     # sam2 >= 1.1 (subdirectory format)
-            "sam2.1_hiera_l",             # sam2 1.0
-            "sam2/sam2_hiera_l",          # older format
-            "sam2_hiera_l",               # fallback
-        ]
+        from sam2.build_sam import build_sam2
+        from sam2.sam2_image_predictor import SAM2ImagePredictor
+        import sam2
 
-        model = None
-        for config_name in config_names:
-            try:
-                logger.info("Trying SAM 2 config: %s", config_name)
-                model = build_sam2(
-                    config_file=config_name,
-                    ckpt_path=checkpoint,
-                    device=self.device,
-                )
-                logger.info("SAM 2 loaded with config: %s", config_name)
-                break
-            except Exception as e:
-                logger.debug("Config %s failed: %s", config_name, e)
-                continue
+        # The sam2 package uses Hydra for config. We need to point Hydra's
+        # config search path to the sam2 package's configs directory.
+        sam2_pkg_dir = os.path.dirname(sam2.__file__)
+        configs_dir = os.path.join(sam2_pkg_dir, "configs")
 
-        if model is None:
-            # Last resort: try to find the config file manually
-            import sam2
-            sam2_dir = os.path.dirname(sam2.__file__)
-            logger.error("SAM 2 config not found. Package dir: %s", sam2_dir)
-            configs_found = []
-            for root, dirs, files in os.walk(sam2_dir):
-                for f in files:
-                    if f.endswith('.yaml'):
-                        configs_found.append(os.path.join(root, f))
-            logger.error("Available configs: %s", configs_found)
-            raise RuntimeError(f"Cannot load SAM 2. Tried configs: {config_names}. Found yamls: {configs_found}")
+        # Inject the sam2 configs dir into Hydra's search path
+        from hydra.core.global_hydra import GlobalHydra
+        GlobalHydra.instance().clear()
+
+        from hydra import initialize_config_dir
+        with initialize_config_dir(config_dir=configs_dir, version_base="1.2"):
+            model = build_sam2(
+                config_file="sam2.1/sam2.1_hiera_l",
+                ckpt_path=checkpoint,
+                device=self.device,
+            )
 
         self.predictor = SAM2ImagePredictor(model)
         logger.info("SAM 2 loaded on %s", self.device)
