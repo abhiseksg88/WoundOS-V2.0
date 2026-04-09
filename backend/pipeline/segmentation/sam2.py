@@ -29,15 +29,46 @@ class SAM2Segmenter(BaseSegmenter):
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        # SAM 2 config is bundled in the installed package
-        # build_sam2 looks for configs relative to the sam2 package directory
+        # SAM 2 checkpoint path
         checkpoint = os.path.join(settings.sam2_model_path, settings.sam2_checkpoint)
 
-        model = build_sam2(
-            config_file=settings.sam2_config,
-            ckpt_path=checkpoint,
-            device=self.device,
-        )
+        # The config name must match what's in the sam2 package's config directory.
+        # Try multiple known config names for compatibility across sam2 versions.
+        config_names = [
+            "sam2.1/sam2.1_hiera_l",     # sam2 >= 1.1 (subdirectory format)
+            "sam2.1_hiera_l",             # sam2 1.0
+            "sam2/sam2_hiera_l",          # older format
+            "sam2_hiera_l",               # fallback
+        ]
+
+        model = None
+        for config_name in config_names:
+            try:
+                logger.info("Trying SAM 2 config: %s", config_name)
+                model = build_sam2(
+                    config_file=config_name,
+                    ckpt_path=checkpoint,
+                    device=self.device,
+                )
+                logger.info("SAM 2 loaded with config: %s", config_name)
+                break
+            except Exception as e:
+                logger.debug("Config %s failed: %s", config_name, e)
+                continue
+
+        if model is None:
+            # Last resort: try to find the config file manually
+            import sam2
+            sam2_dir = os.path.dirname(sam2.__file__)
+            logger.error("SAM 2 config not found. Package dir: %s", sam2_dir)
+            configs_found = []
+            for root, dirs, files in os.walk(sam2_dir):
+                for f in files:
+                    if f.endswith('.yaml'):
+                        configs_found.append(os.path.join(root, f))
+            logger.error("Available configs: %s", configs_found)
+            raise RuntimeError(f"Cannot load SAM 2. Tried configs: {config_names}. Found yamls: {configs_found}")
+
         self.predictor = SAM2ImagePredictor(model)
         logger.info("SAM 2 loaded on %s", self.device)
 
