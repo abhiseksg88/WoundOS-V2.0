@@ -25,18 +25,36 @@ def _collection():
 
 
 def create_job(doc: JobDocument) -> None:
-    """Create a new job document in Firestore."""
-    _collection().document(doc.job_id).set(doc.model_dump())
+    """Create a new job document in Firestore.
+
+    Poses and intrinsics contain deeply nested arrays (4x4 matrices)
+    which Firestore doesn't support. Serialize them as JSON strings.
+    """
+    import json
+    data = doc.model_dump()
+    # Firestore can't store arrays of arrays — serialize as JSON strings
+    if data.get("poses"):
+        data["poses"] = json.dumps(data["poses"])
+    if data.get("intrinsics"):
+        data["intrinsics"] = json.dumps(data["intrinsics"])
+    _collection().document(doc.job_id).set(data)
     logger.info("Created job %s", doc.job_id)
 
 
 def get_job(job_id: str) -> JobDocument | None:
     """Read a job document. Returns None if not found."""
+    import json
     doc_ref = _collection().document(job_id)
     doc = doc_ref.get()
     if not doc.exists:
         return None
-    return JobDocument(**doc.to_dict())
+    data = doc.to_dict()
+    # Deserialize JSON strings back to dicts/lists
+    if isinstance(data.get("poses"), str):
+        data["poses"] = json.loads(data["poses"])
+    if isinstance(data.get("intrinsics"), str):
+        data["intrinsics"] = json.loads(data["intrinsics"])
+    return JobDocument(**data)
 
 
 def update_job_status(
