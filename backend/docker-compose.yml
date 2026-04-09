@@ -1,0 +1,48 @@
+# WoundOS V2 Backend — Local Development
+# Requires: NVIDIA Docker runtime for GPU worker
+#
+# Usage:
+#   docker-compose up            # API gateway only
+#   docker-compose --profile gpu up  # API + GPU worker
+
+version: "3.8"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8080:8080"
+    environment:
+      WOUNDOS_WORKER_MODE: api
+      WOUNDOS_GCP_PROJECT_ID: ${GCP_PROJECT_ID:-wound-ai-api}
+      WOUNDOS_ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_APPLICATION_CREDENTIALS: /app/credentials.json
+    volumes:
+      - ./credentials.json:/app/credentials.json:ro
+      - .:/app
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      WOUNDOS_WORKER_MODE: gpu
+      WOUNDOS_GCP_PROJECT_ID: ${GCP_PROJECT_ID:-wound-ai-api}
+      WOUNDOS_ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_APPLICATION_CREDENTIALS: /app/credentials.json
+    volumes:
+      - ./credentials.json:/app/credentials.json:ro
+    command: ["python3", "-m", "worker.main"]
+    restart: unless-stopped

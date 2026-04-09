@@ -1,0 +1,16 @@
+# Cloud Build config for API Gateway image (CPU-only, lightweight)
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.api'
+      - '-t'
+      - '${_IMAGE_TAG}'
+      - '.'
+images:
+  - '${_IMAGE_TAG}'
+substitutions:
+  _IMAGE_TAG: 'us-central1-docker.pkg.dev/${PROJECT_ID}/woundos/api:latest'
+options:
+  logging: CLOUD_LOGGING_ONLY

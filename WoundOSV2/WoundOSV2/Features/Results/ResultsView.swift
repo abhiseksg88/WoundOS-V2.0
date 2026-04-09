@@ -58,7 +58,7 @@ struct ResultsView: View {
         }
         .sheet(isPresented: $showCompare) {
             NavigationStack {
-                LongitudinalCompareView()
+                LongitudinalCompareView(scans: viewModel.patient?.wounds ?? MockDataProvider.allScans.filter { $0.status == .complete })
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button("Close") { showCompare = false }

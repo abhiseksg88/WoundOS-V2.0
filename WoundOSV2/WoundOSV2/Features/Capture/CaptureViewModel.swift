@@ -20,8 +20,8 @@ final class CaptureViewModel: ObservableObject {
 
     let sessionManager = ARSessionManager()
     private var cancellables = Set<AnyCancellable>()
-    private var lastPoseTime: TimeInterval = 0
-    private var lastForward: simd_float3?
+    private var lastPoseTimestamp: TimeInterval = 0
+    private var lastForwardVector: simd_float3?
 
     var targetFrames: Int { ServerConfig.targetFrames }
     var progress: Double { Double(selectedFrameCount) / Double(targetFrames) }
@@ -63,6 +63,8 @@ final class CaptureViewModel: ObservableObject {
 
     func resetCapture() {
         state = .ready
+        lastPoseTimestamp = 0
+        lastForwardVector = nil
         sessionManager.resetSession()
     }
 
@@ -86,7 +88,7 @@ final class CaptureViewModel: ObservableObject {
             .sink { [weak self] count in
                 guard let self = self else { return }
                 self.selectedFrameCount = count
-                self.arcCoverage = self.sessionManager.frameSelector(coverage: count)
+                self.arcCoverage = Float(count) * ServerConfig.minParallaxDegrees
 
                 if count >= ServerConfig.targetFrames && self.arcCoverage >= ServerConfig.minArcCoverageDegrees {
                     self.completeCapture()
@@ -97,6 +99,31 @@ final class CaptureViewModel: ObservableObject {
         sessionManager.$detectedPlaneDistance
             .receive(on: DispatchQueue.main)
             .assign(to: &$planeDistance)
+
+        // Update angular velocity from ARKit frame updates
+        sessionManager.$latestCameraTransform
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] transformData in
+                guard let self = self, let (transform, timestamp) = transformData else { return }
+                self.updateAngularVelocity(transform: transform, timestamp: timestamp)
+            }
+            .store(in: &cancellables)
+    }
+
+    private func updateAngularVelocity(transform: simd_float4x4, timestamp: TimeInterval) {
+        let forward = -simd_normalize(simd_float3(transform.columns.2.x, transform.columns.2.y, transform.columns.2.z))
+
+        if let lastForward = lastForwardVector, lastPoseTimestamp > 0 {
+            let dt = timestamp - lastPoseTimestamp
+            if dt > 0.01 {
+                let dot = simd_clamp(simd_dot(forward, lastForward), -1.0, 1.0)
+                let angleDeg = acos(dot) * 180.0 / .pi
+                angularVelocity = angleDeg / Float(dt)
+            }
+        }
+
+        lastForwardVector = forward
+        lastPoseTimestamp = timestamp
     }
 
     private func completeCapture() {
@@ -104,12 +131,5 @@ final class CaptureViewModel: ObservableObject {
         state = .complete
         sessionManager.pauseSession()
         WOSHaptics.complete()
-    }
-}
-
-// Extension to expose arc coverage from session manager
-extension ARSessionManager {
-    func frameSelector(coverage count: Int) -> Float {
-        return Float(count) * ServerConfig.minParallaxDegrees
     }
 }

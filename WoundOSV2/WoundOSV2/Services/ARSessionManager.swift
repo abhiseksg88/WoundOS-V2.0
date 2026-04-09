@@ -19,11 +19,11 @@ final class ARSessionManager: NSObject, ObservableObject {
     @Published var selectedFrameCount: Int = 0
     @Published var isLiDARAvailable: Bool = false
     @Published var hasSceneDepth: Bool = false
+    @Published var latestCameraTransform: (simd_float4x4, TimeInterval)?
 
     private(set) var selectedFrames: [SelectedFrame] = []
     private var frameSelector: FrameSelector?
-    private var lastForwardVector: simd_float3?
-    private var cancellables = Set<AnyCancellable>()
+    private let processingQueue = DispatchQueue(label: "com.careplix.woundos.frameprocessing", qos: .userInitiated)
 
     override init() {
         super.init()
@@ -126,30 +126,46 @@ final class ARSessionManager: NSObject, ObservableObject {
 
 extension ARSessionManager: ARSessionDelegate {
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        // Lightweight updates on main thread
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-
             self.currentTrackingState = frame.camera.trackingState
             self.detectedPlaneDistance = self.distanceToNearestPlane(from: frame)
             self.totalFrameCount += 1
+            self.latestCameraTransform = (frame.camera.transform, frame.timestamp)
+        }
 
-            guard self.selectedFrameCount < ServerConfig.maxFrames else { return }
+        // Heavy processing (JPEG compression) on background queue
+        guard selectedFrameCount < ServerConfig.maxFrames else { return }
+        guard let selector = frameSelector else { return }
 
-            guard let selector = self.frameSelector else { return }
+        let camera = frame.camera
+        let pose = extractPose(from: camera, at: frame.timestamp)
 
-            let pose = self.extractPose(from: frame.camera, at: frame.timestamp)
+        if selector.shouldSelect(frame: frame, pose: pose) {
+            let intrinsics = extractIntrinsics(from: camera)
+            let pixelBuffer = frame.capturedImage
+            CVPixelBufferRetain(pixelBuffer)
 
-            if selector.shouldSelect(frame: frame, pose: pose) {
-                let intrinsics = self.extractIntrinsics(from: frame.camera)
-                let pixelBuffer = frame.capturedImage
-                if let jpegData = self.compressToJPEG(pixelBuffer: pixelBuffer) {
-                    let selected = SelectedFrame(
-                        index: self.selectedFrameCount,
-                        jpegData: jpegData,
-                        pose: pose,
-                        intrinsics: intrinsics,
-                        timestamp: frame.timestamp
-                    )
+            processingQueue.async { [weak self] in
+                guard let self = self else {
+                    CVPixelBufferRelease(pixelBuffer)
+                    return
+                }
+                let jpegData = self.compressToJPEG(pixelBuffer: pixelBuffer)
+                CVPixelBufferRelease(pixelBuffer)
+
+                guard let data = jpegData else { return }
+
+                let selected = SelectedFrame(
+                    index: self.selectedFrameCount,
+                    jpegData: data,
+                    pose: pose,
+                    intrinsics: intrinsics,
+                    timestamp: frame.timestamp
+                )
+
+                DispatchQueue.main.async {
                     self.selectedFrames.append(selected)
                     self.selectedFrameCount = self.selectedFrames.count
                     WOSHaptics.capture()

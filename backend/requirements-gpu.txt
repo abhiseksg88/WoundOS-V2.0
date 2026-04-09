@@ -1,0 +1,16 @@
+# WoundOS V2 Backend — GPU-specific dependencies
+# Install on top of requirements.txt
+
+# PyTorch with CUDA 12.1
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch==2.4.0
+torchvision==0.19.0
+
+# 3D processing
+open3d==0.18.0
+
+# SAM 2 — installed from GitHub in Dockerfile (not PyPI)
+# pip install git+https://github.com/facebookresearch/sam2.git
+
+# Depth Pro — installed from GitHub in Dockerfile (not PyPI)
+# pip install git+https://github.com/apple/ml-depth-pro.git

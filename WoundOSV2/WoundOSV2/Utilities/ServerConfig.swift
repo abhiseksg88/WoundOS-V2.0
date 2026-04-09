@@ -3,9 +3,12 @@ import Foundation
 struct ServerConfig {
     static let defaultBaseURL = "https://wound-ai-api-333499614175.us-central1.run.app"
     static let reconstructEndpoint = "/api/v2/reconstruct"
+    static let jobsEndpoint = "/api/v2/jobs"  // GET /api/v2/jobs/{jobId}
     static let segmentEndpoint = "/api/v1/segment"
     static let woundAmbitEndpoint = "/api/v1/woundambit"
-    static let uploadTimeout: TimeInterval = 60
+    static let uploadTimeout: TimeInterval = 30  // Upload only, not full processing
+    static let pollInterval: TimeInterval = 3.0  // Seconds between job polls
+    static let maxPollDuration: TimeInterval = 300  // 5 min max poll time
     static let maxRetries = 3
     static let jobStatusEndpoint = "/api/v2/jobs/"
     static let pollIntervalSeconds: TimeInterval = 3.0

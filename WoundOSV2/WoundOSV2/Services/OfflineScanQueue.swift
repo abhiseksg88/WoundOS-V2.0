@@ -11,7 +11,6 @@ final class OfflineScanQueue: ObservableObject {
 
     private let monitor = NWPathMonitor()
     private let monitorQueue = DispatchQueue(label: "com.careplix.woundos.networkmonitor")
-    private var cancellables = Set<AnyCancellable>()
 
     struct QueuedScan: Identifiable, Codable {
         let id: UUID
@@ -59,8 +58,49 @@ final class OfflineScanQueue: ObservableObject {
 
         Task {
             do {
-                // In production, load frames from disk and upload
-                try await Task.sleep(nanoseconds: 2_000_000_000)
+                // Load frames from disk
+                let framesDir = URL(fileURLWithPath: next.framesDirectory)
+                let fileManager = FileManager.default
+                let frameFiles = try fileManager.contentsOfDirectory(at: framesDir, includingPropertiesForKeys: nil)
+                    .filter { $0.pathExtension == "jpg" }
+                    .sorted { $0.lastPathComponent < $1.lastPathComponent }
+
+                var frames: [SelectedFrame] = []
+                for (index, fileURL) in frameFiles.enumerated() {
+                    let data = try Data(contentsOf: fileURL)
+                    let frame = SelectedFrame(
+                        index: index,
+                        jpegData: data,
+                        pose: CameraPose.identity,
+                        intrinsics: CameraIntrinsics.defaultiPhone,
+                        timestamp: TimeInterval(index)
+                    )
+                    frames.append(frame)
+                }
+
+                // Load poses if saved alongside frames
+                let posesURL = framesDir.appendingPathComponent("poses.json")
+                if let posesData = try? Data(contentsOf: posesURL),
+                   let poses = try? JSONDecoder().decode([CameraPose].self, from: posesData) {
+                    for i in 0..<min(frames.count, poses.count) {
+                        frames[i] = SelectedFrame(
+                            index: i,
+                            jpegData: frames[i].jpegData,
+                            pose: poses[i],
+                            intrinsics: frames[i].intrinsics,
+                            timestamp: poses[i].timestamp
+                        )
+                    }
+                }
+
+                // Upload via ReconstructionService
+                let service = ReconstructionService()
+                let _ = try await service.uploadScan(
+                    frames: frames,
+                    woundPoint: nil,
+                    useWoundAmbit: true,
+                    generateSplat: false
+                )
 
                 await MainActor.run {
                     self.queuedScans.removeAll { $0.id == next.id }
