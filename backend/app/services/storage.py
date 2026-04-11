@@ -63,6 +63,59 @@ def upload_result_file(job_id: str, filename: str, data: bytes, content_type: st
     return f"gs://{settings.gcs_bucket}/{blob_name}"
 
 
+def upload_mesh(job_id: str, obj_bytes: bytes) -> str:
+    """Upload a Wavefront OBJ mesh from iOS LiDAR scan to GCS.
+
+    Args:
+        job_id: Job UUID.
+        obj_bytes: OBJ file content (UTF-8 encoded).
+
+    Returns:
+        GCS path of the uploaded mesh.
+    """
+    client = _get_client()
+    bucket = client.bucket(settings.gcs_bucket)
+    blob_name = f"{job_id}/mesh.obj"
+    blob = bucket.blob(blob_name)
+    blob.upload_from_string(obj_bytes, content_type="application/x-tgif")
+    logger.info("Uploaded LiDAR mesh for job %s (%d bytes)", job_id, len(obj_bytes))
+    return f"{job_id}/mesh.obj"
+
+
+def download_mesh(job_id: str) -> bytes:
+    """Download the LiDAR OBJ mesh for a job."""
+    client = _get_client()
+    bucket = client.bucket(settings.gcs_bucket)
+    blob_name = f"{job_id}/mesh.obj"
+    blob = bucket.blob(blob_name)
+    data = blob.download_as_bytes()
+    logger.info("Downloaded LiDAR mesh for job %s (%d bytes)", job_id, len(data))
+    return data
+
+
+def upload_depth_png(job_id: str, png_bytes: bytes) -> str:
+    """Upload a 16-bit depth PNG from iOS sceneDepth capture."""
+    client = _get_client()
+    bucket = client.bucket(settings.gcs_bucket)
+    blob_name = f"{job_id}/depth.png"
+    blob = bucket.blob(blob_name)
+    blob.upload_from_string(png_bytes, content_type="image/png")
+    return f"{job_id}/depth.png"
+
+
+def download_depth_png(job_id: str) -> bytes | None:
+    """Download the depth PNG for a job, or None if not present."""
+    try:
+        client = _get_client()
+        bucket = client.bucket(settings.gcs_bucket)
+        blob_name = f"{job_id}/depth.png"
+        blob = bucket.blob(blob_name)
+        return blob.download_as_bytes()
+    except Exception:
+        return None
+
+
+
 def upload_splat(job_id: str, data: bytes) -> str:
     """Upload a .splat file and return a signed URL."""
     client = _get_client()

@@ -9,6 +9,8 @@ struct PatientProfileView: View {
     @State private var showBoundary = false
     @State private var showResults = false
     @State private var capturedFrames: [SelectedFrame] = []
+    @State private var capturedLiDARPayload: LiDARScanPayload?
+    @State private var capturedWoundPoint: CGPoint?
     @State private var serverResponse: ServerResponse?
     @State private var processingVM: ProcessingViewModel?
     @State private var resultsVM: ResultsViewModel?
@@ -27,8 +29,17 @@ struct PatientProfileView: View {
         .navigationTitle(patient.fullName)
         .navigationBarTitleDisplayMode(.large)
         .fullScreenCover(isPresented: $showCapture) {
-            CaptureContainerView { selectedFrames in
-                self.capturedFrames = selectedFrames
+            CaptureContainerView { result in
+                switch result {
+                case .multiview(let frames, let woundPoint):
+                    self.capturedFrames = frames
+                    self.capturedLiDARPayload = nil
+                    self.capturedWoundPoint = woundPoint
+                case .lidar(let payload, let woundPoint):
+                    self.capturedFrames = [payload.bestFrame]
+                    self.capturedLiDARPayload = payload
+                    self.capturedWoundPoint = woundPoint
+                }
                 showCapture = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     let vm = ProcessingViewModel(useMock: useMockServer)
@@ -46,7 +57,12 @@ struct PatientProfileView: View {
         .fullScreenCover(isPresented: $showProcessing) {
             NavigationStack {
                 if let vm = processingVM {
-                    ProcessingView(viewModel: vm, frames: capturedFrames) { response in
+                    ProcessingView(
+                        viewModel: vm,
+                        frames: capturedFrames,
+                        lidarPayload: capturedLiDARPayload,
+                        woundPoint: capturedWoundPoint
+                    ) { response in
                         self.serverResponse = response
                         showProcessing = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -107,6 +123,8 @@ struct PatientProfileView: View {
                                     processingVM = nil
                                     resultsVM = nil
                                     capturedFrames = []
+                                    capturedLiDARPayload = nil
+                                    capturedWoundPoint = nil
                                 }
                             }
                         }

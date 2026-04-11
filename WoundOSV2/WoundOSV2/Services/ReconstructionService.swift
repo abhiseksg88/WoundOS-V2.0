@@ -93,11 +93,21 @@ enum ReconstructionError: Error, LocalizedError {
 // MARK: - Protocol
 
 protocol ReconstructionServiceProtocol {
+    /// Multi-view (Tier 2) submission: 30 frames + Depth Pro + COLMAP MVS.
+    /// Used as fallback for non-LiDAR devices.
     func submitScan(
         frames: [SelectedFrame],
         woundPoint: CGPoint?,
         useWoundAmbit: Bool,
         generateSplat: Bool
+    ) async throws -> JobSubmission
+
+    /// LiDAR-native (Tier 1) submission: 1 frame + ARKit scene mesh + intrinsics.
+    /// Used on iPhone Pro / iPad Pro. ~10x faster than multi-view.
+    func submitLiDARScan(
+        payload: LiDARScanPayload,
+        woundPoint: CGPoint?,
+        useWoundAmbit: Bool
     ) async throws -> JobSubmission
 
     func pollJobStatus(jobId: String) async throws -> JobStatus
@@ -184,6 +194,101 @@ final class ReconstructionService: ReconstructionServiceProtocol {
         throw lastError ?? URLError(.unknown)
     }
 
+    // MARK: - LiDAR-native submission (Tier 1)
+
+    func submitLiDARScan(
+        payload: LiDARScanPayload,
+        woundPoint: CGPoint?,
+        useWoundAmbit: Bool
+    ) async throws -> JobSubmission {
+        let url = URL(string: baseURL + ServerConfig.reconstructEndpoint)!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = ServerConfig.uploadTimeout
+
+        if let token = authService.currentToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let boundary = UUID().uuidString
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+
+        // Single best frame
+        body.appendMultipart(
+            boundary: boundary, name: "frames", filename: "frame_0.jpg",
+            mimeType: "image/jpeg", data: payload.bestFrame.jpegData
+        )
+
+        // Single-element poses array
+        let posesArray = [payload.bestFrame.pose]
+        if let posesData = try? JSONEncoder().encode(posesArray) {
+            body.appendMultipart(
+                boundary: boundary, name: "poses", filename: "poses.json",
+                mimeType: "application/json", data: posesData
+            )
+        }
+
+        // Intrinsics
+        if let intrinsicsData = try? JSONEncoder().encode(payload.bestFrame.intrinsics) {
+            body.appendMultipart(
+                boundary: boundary, name: "intrinsics", filename: "intrinsics.json",
+                mimeType: "application/json", data: intrinsicsData
+            )
+        }
+
+        // ARKit scene reconstruction OBJ mesh — the key payload
+        body.appendMultipart(
+            boundary: boundary, name: "mesh", filename: "scene.obj",
+            mimeType: "application/x-tgif", data: payload.meshOBJData
+        )
+
+        // Optional 16-bit depth PNG
+        if let depthData = payload.depthPNG {
+            body.appendMultipart(
+                boundary: boundary, name: "depth", filename: "depth.png",
+                mimeType: "image/png", data: depthData
+            )
+        }
+
+        // Mode and form fields
+        body.appendMultipartField(boundary: boundary, name: "mode", value: ServerConfig.lidarModeParamName)
+        if let woundPoint = woundPoint {
+            body.appendMultipartField(
+                boundary: boundary, name: "wound_point",
+                value: "\(woundPoint.x),\(woundPoint.y)"
+            )
+        }
+        body.appendMultipartField(boundary: boundary, name: "use_woundambit", value: useWoundAmbit ? "true" : "false")
+        body.appendMultipartField(boundary: boundary, name: "generate_splat", value: "false")
+        body.appendMultipartField(boundary: boundary, name: "source_platform", value: "ios")
+        body.appendMultipartField(boundary: boundary, name: "device_model", value: UIDevice.current.model)
+
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        // Retry logic for upload
+        var lastError: Error?
+        for attempt in 0..<ServerConfig.maxRetries {
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse,
+                      (200..<300).contains(httpResponse.statusCode) else {
+                    throw URLError(.badServerResponse)
+                }
+                return try JSONDecoder().decode(JobSubmission.self, from: data)
+            } catch {
+                lastError = error
+                if attempt < ServerConfig.maxRetries - 1 {
+                    let delay = UInt64(pow(2.0, Double(attempt))) * 1_000_000_000
+                    try? await Task.sleep(nanoseconds: delay)
+                }
+            }
+        }
+        throw lastError ?? URLError(.unknown)
+    }
+
     func pollJobStatus(jobId: String) async throws -> JobStatus {
         let url = URL(string: baseURL + ServerConfig.jobStatusEndpoint + jobId)!
         var request = URLRequest(url: url)
@@ -217,6 +322,18 @@ final class MockReconstructionService: ReconstructionServiceProtocol {
         try await Task.sleep(nanoseconds: 500_000_000) // simulate upload
         mockStartTime = Date()
         return JobSubmission(jobId: UUID().uuidString, status: "queued", estimatedDurationSeconds: 6)
+    }
+
+    func submitLiDARScan(
+        payload: LiDARScanPayload,
+        woundPoint: CGPoint?,
+        useWoundAmbit: Bool
+    ) async throws -> JobSubmission {
+        // Simulate fast LiDAR upload (~0.5s vs ~5s for multiview)
+        try await Task.sleep(nanoseconds: 300_000_000)
+        mockStartTime = Date()
+        // LiDAR jobs complete much faster
+        return JobSubmission(jobId: UUID().uuidString, status: "queued", estimatedDurationSeconds: 4)
     }
 
     func pollJobStatus(jobId: String) async throws -> JobStatus {

@@ -7,6 +7,8 @@ struct ContentView: View {
     @State private var showBoundary = false
     @State private var showResults = false
     @State private var capturedFrames: [SelectedFrame] = []
+    @State private var capturedLiDARPayload: LiDARScanPayload?
+    @State private var capturedWoundPoint: CGPoint?
     @State private var serverResponse: ServerResponse?
     @State private var processingViewModel: ProcessingViewModel?
     @State private var resultsViewModel: ResultsViewModel?
@@ -46,8 +48,17 @@ struct ContentView: View {
             }
         }
         .fullScreenCover(isPresented: $showCapture) {
-            CaptureContainerView { selectedFrames in
-                self.capturedFrames = selectedFrames
+            CaptureContainerView { result in
+                switch result {
+                case .multiview(let frames, let woundPoint):
+                    self.capturedFrames = frames
+                    self.capturedLiDARPayload = nil
+                    self.capturedWoundPoint = woundPoint
+                case .lidar(let payload, let woundPoint):
+                    self.capturedFrames = [payload.bestFrame]
+                    self.capturedLiDARPayload = payload
+                    self.capturedWoundPoint = woundPoint
+                }
                 showCapture = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     startProcessing()
@@ -59,7 +70,9 @@ struct ContentView: View {
                 if let vm = processingViewModel {
                     ProcessingView(
                         viewModel: vm,
-                        frames: capturedFrames
+                        frames: capturedFrames,
+                        lidarPayload: capturedLiDARPayload,
+                        woundPoint: capturedWoundPoint
                     ) { response in
                         self.serverResponse = response
                         showProcessing = false
@@ -124,6 +137,8 @@ struct ContentView: View {
                                     showResults = false
                                     serverResponse = nil
                                     capturedFrames = []
+                                    capturedLiDARPayload = nil
+                                    capturedWoundPoint = nil
                                     processingViewModel = nil
                                     resultsViewModel = nil
                                 }

@@ -80,6 +80,9 @@
 		DD000000000000000000117 /* DimensionCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000117; };
 		DD000000000000000000118 /* ImageProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000118; };
 		DD000000000000000000119 /* SegmentationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000119; };
+		DD000000000000000000120 /* LiDARScanPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000120; };
+		DD000000000000000000121 /* ARMeshExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000121; };
+		DD000000000000000000122 /* DepthMapExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000122; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -147,6 +150,9 @@
 		CC000000000000000000090 /* ReconstructionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReconstructionService.swift; sourceTree = "<group>"; };
 		CC000000000000000000091 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		CC000000000000000000119 /* SegmentationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentationService.swift; sourceTree = "<group>"; };
+		CC000000000000000000120 /* LiDARScanPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiDARScanPayload.swift; sourceTree = "<group>"; };
+		CC000000000000000000121 /* ARMeshExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARMeshExporter.swift; sourceTree = "<group>"; };
+		CC000000000000000000122 /* DepthMapExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthMapExporter.swift; sourceTree = "<group>"; };
 		CC000000000000000000092 /* ProcessingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessingView.swift; sourceTree = "<group>"; };
 		CC000000000000000000093 /* ProcessingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessingViewModel.swift; sourceTree = "<group>"; };
 		CC000000000000000000094 /* ResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsView.swift; sourceTree = "<group>"; };
@@ -381,6 +387,7 @@
 				CC000000000000000000023 /* Patient.swift */,
 				CC000000000000000000024 /* WoundMeasurement.swift */,
 				CC000000000000000000025 /* WoundScan.swift */,
+				CC000000000000000000120 /* LiDARScanPayload.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -394,6 +401,8 @@
 				CC000000000000000000091 /* AuthService.swift */,
 				CC000000000000000000119 /* SegmentationService.swift */,
 				CC000000000000000000113 /* OfflineScanQueue.swift */,
+				CC000000000000000000121 /* ARMeshExporter.swift */,
+				CC000000000000000000122 /* DepthMapExporter.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -668,6 +677,9 @@
 				DD000000000000000000117 /* DimensionCalculator.swift in Sources */,
 				DD000000000000000000118 /* ImageProcessing.swift in Sources */,
 				DD000000000000000000119 /* SegmentationService.swift in Sources */,
+				DD000000000000000000120 /* LiDARScanPayload.swift in Sources */,
+				DD000000000000000000121 /* ARMeshExporter.swift in Sources */,
+				DD000000000000000000122 /* DepthMapExporter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

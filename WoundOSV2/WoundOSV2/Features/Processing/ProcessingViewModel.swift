@@ -67,6 +67,68 @@ final class ProcessingViewModel: ObservableObject {
         }
     }
 
+    /// LiDAR-native processing: 1 frame + ARKit mesh, ~3-5 second backend.
+    /// Uses the same polling pipeline as multiview but with the LiDAR submission method.
+    func startLiDARProcessing(payload: LiDARScanPayload, woundPoint: CGPoint?) {
+        Task { @MainActor in
+            do {
+                let service: ReconstructionServiceProtocol = useMock
+                    ? MockReconstructionService()
+                    : ReconstructionService()
+
+                await advanceToStep(.upload)
+                let submission = try await service.submitLiDARScan(
+                    payload: payload,
+                    woundPoint: woundPoint,
+                    useWoundAmbit: true
+                )
+                self.jobId = submission.jobId
+
+                await advanceToStep(.reconstruct)
+
+                // Poll for results — LiDAR completes in ~3-5 seconds, no Tier 1/2 split
+                for _ in 0..<ServerConfig.maxPollAttempts {
+                    try await Task.sleep(nanoseconds: UInt64(ServerConfig.pollIntervalSeconds * 1_000_000_000))
+
+                    let status = try await service.pollJobStatus(jobId: submission.jobId)
+
+                    if let progress = status.progress {
+                        self.serverProgress = progress
+                        self.overallProgress = max(self.overallProgress, 0.2 + progress * 0.8)
+                    }
+
+                    if let step = status.step {
+                        let mapped = mapServerStep(step)
+                        if mapped.rawValue > currentStep.rawValue {
+                            await advanceToStep(mapped)
+                        }
+                    }
+
+                    if status.status == .complete, let result = status.result {
+                        self.goldResponse = result
+                        self.preliminaryResponse = result
+                        self.isPreliminaryReady = true
+                        await advanceToStep(.complete)
+                        self.isComplete = true
+                        self.onGoldReady?(result)
+                        return
+                    }
+
+                    if status.status == .failed {
+                        throw ReconstructionError.serverJobFailed(
+                            status.errorMessage ?? "Unknown server error"
+                        )
+                    }
+                }
+                throw ReconstructionError.pollTimeout
+            } catch {
+                self.hasFailed = true
+                self.errorMessage = error.localizedDescription
+                self.stepStates[self.currentStep] = .failed
+            }
+        }
+    }
+
     func startProcessing(frames: [SelectedFrame]) {
         Task { @MainActor in
             do {
