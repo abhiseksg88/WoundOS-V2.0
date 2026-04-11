@@ -55,6 +55,22 @@ def compute_length_width_mm(
 ) -> tuple[float, float]:
     """Compute greatest length and perpendicular width in millimeters.
 
+    Convenience wrapper that drops endpoint indices. Use
+    `compute_length_width_with_endpoints` if you need the marker positions.
+    """
+    length_mm, width_mm, _, _, _, _ = compute_length_width_with_endpoints(
+        boundary_points_3d, plane_centroid, plane_normal
+    )
+    return length_mm, width_mm
+
+
+def compute_length_width_with_endpoints(
+    boundary_points_3d: np.ndarray,
+    plane_centroid: np.ndarray,
+    plane_normal: np.ndarray,
+) -> tuple[float, float, int, int, int, int]:
+    """Compute length/width and return the boundary indices of the L and W endpoints.
+
     Length: Maximum pairwise distance between boundary points (projected onto plane).
     Width: Maximum extent perpendicular to the length axis.
 
@@ -64,10 +80,11 @@ def compute_length_width_mm(
         plane_normal: (3,) reference plane normal.
 
     Returns:
-        (length_mm, width_mm)
+        (length_mm, width_mm, length_p1_idx, length_p2_idx, width_p1_idx, width_p2_idx)
+        Endpoint indices reference rows in `boundary_points_3d`.
     """
     if len(boundary_points_3d) < 2:
-        return (0.0, 0.0)
+        return (0.0, 0.0, 0, 0, 0, 0)
 
     # Project onto plane
     pts_2d = project_to_plane(boundary_points_3d, plane_centroid, plane_normal)
@@ -89,10 +106,10 @@ def compute_length_width_mm(
 
     length_m = max_dist
 
-    # Length axis direction
     if length_m < 1e-10:
-        return (0.0, 0.0)
+        return (0.0, 0.0, 0, 0, 0, 0)
 
+    # Length axis direction
     length_dir = pts_2d[p2_idx] - pts_2d[p1_idx]
     length_dir /= np.linalg.norm(length_dir)
 
@@ -101,9 +118,18 @@ def compute_length_width_mm(
 
     # Project all boundary points onto perpendicular axis
     perp_projections = pts_2d @ perp_dir
-    width_m = perp_projections.max() - perp_projections.min()
+    perp_min_idx = int(np.argmin(perp_projections))
+    perp_max_idx = int(np.argmax(perp_projections))
+    width_m = perp_projections[perp_max_idx] - perp_projections[perp_min_idx]
 
-    return (length_m * 1000.0, width_m * 1000.0)
+    return (
+        length_m * 1000.0,
+        width_m * 1000.0,
+        int(p1_idx),
+        int(p2_idx),
+        perp_min_idx,
+        perp_max_idx,
+    )
 
 
 def compute_perimeter_mm(boundary_points_3d: np.ndarray) -> float:

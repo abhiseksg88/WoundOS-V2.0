@@ -10,21 +10,38 @@ struct ResultsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: WOSSpacing.xxl) {
+            VStack(spacing: 0) {
+                // Top: full-bleed annotated image (mirrors the screenshot)
+                heroAnnotatedImage
+
                 if viewModel.isRefining {
                     refiningBanner
+                        .padding(.horizontal, WOSSpacing.lg)
+                        .padding(.top, WOSSpacing.md)
                 }
-                annotatedImageSection
-                metricsGrid
+
+                // Wound identifier + clinical measurement table
+                woundHeader
+                    .padding(.horizontal, WOSSpacing.lg)
+                    .padding(.top, WOSSpacing.lg)
+
+                clinicalMeasurementTable
+                    .padding(.horizontal, WOSSpacing.lg)
+                    .padding(.top, WOSSpacing.md)
                     .animation(.easeInOut(duration: 0.4), value: viewModel.measurements)
-                depthHeatmapSection
-                clinicalSummarySection
-                pushScoreSection
-                viewer3DSection
-                actionsSection
+
+                // Secondary sections: depth, clinical summary, PUSH, 3D, actions
+                VStack(spacing: WOSSpacing.xxl) {
+                    depthHeatmapSection
+                    clinicalSummarySection
+                    pushScoreSection
+                    viewer3DSection
+                    actionsSection
+                }
+                .padding(.horizontal, WOSSpacing.lg)
+                .padding(.top, WOSSpacing.xxl)
+                .padding(.bottom, WOSSpacing.xxxl)
             }
-            .padding(.horizontal, WOSSpacing.lg)
-            .padding(.bottom, WOSSpacing.xxxl)
         }
         .background(WOSColors.background.ignoresSafeArea())
         .navigationTitle("Results")
@@ -92,82 +109,101 @@ struct ResultsView: View {
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 
-    // MARK: - Annotated Image
-    private var annotatedImageSection: some View {
-        WOSCard {
-            VStack(alignment: .leading, spacing: WOSSpacing.sm) {
-                Text("Wound Analysis")
-                    .font(WOSTypography.headline)
-                    .foregroundColor(WOSColors.textPrimary)
-
-                if let image = viewModel.annotatedImage {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .cornerRadius(WOSRadius.md)
-                        .accessibilityLabel("Annotated wound image with measurement overlays")
-                } else {
-                    RoundedRectangle(cornerRadius: WOSRadius.md)
-                        .fill(WOSColors.fill)
-                        .frame(height: 200)
-                        .overlay(
-                            Image(systemName: "photo")
-                                .font(.system(size: 40))
-                                .foregroundColor(WOSColors.textTertiary)
-                        )
-                }
+    // MARK: - Hero Annotated Image (full-bleed, like Apple Measure / Tissue Analytics)
+    private var heroAnnotatedImage: some View {
+        Group {
+            if let image = viewModel.annotatedImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 360)
+                    .clipped()
+                    .accessibilityLabel("Annotated wound image with L and W cross markers")
+            } else {
+                Rectangle()
+                    .fill(WOSColors.fill)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 360)
+                    .overlay(
+                        Image(systemName: "photo")
+                            .font(.system(size: 56))
+                            .foregroundColor(WOSColors.textTertiary)
+                    )
             }
         }
     }
 
-    // MARK: - Metrics Grid (2x3)
-    private var metricsGrid: some View {
-        LazyVGrid(columns: [
-            GridItem(.flexible(), spacing: WOSSpacing.md),
-            GridItem(.flexible(), spacing: WOSSpacing.md)
-        ], spacing: WOSSpacing.md) {
-            WOSMetricTile(
-                icon: "square.dashed",
-                iconColor: WOSColors.teal,
-                label: "Area",
-                value: String(format: "%.1f", viewModel.measurements.areaCm2),
-                unit: "cm\u{00B2}",
-                trend: viewModel.areaTrend
-            )
+    // MARK: - Wound Header ("● Wound W1")
+    private var woundHeader: some View {
+        HStack(spacing: WOSSpacing.sm) {
+            Circle()
+                .fill(WOSColors.green)
+                .frame(width: 10, height: 10)
+            Text("Wound W1")
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundColor(WOSColors.textPrimary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
-            WOSMetricTile(
-                icon: "arrow.down.to.line",
-                iconColor: WOSColors.red,
-                label: "Max Depth",
-                value: String(format: "%.1f", viewModel.measurements.maxDepthMm),
-                unit: "mm"
-            )
+    // MARK: - Clinical Measurement Table (Area / Circumference / Length / Width / Depth / Volume)
+    private var clinicalMeasurementTable: some View {
+        WOSCard {
+            VStack(spacing: 0) {
+                tableRow(
+                    label: "Area",
+                    value: String(format: "%.2f cm\u{00B2}", viewModel.measurements.areaCm2),
+                    showDivider: true
+                )
+                tableRow(
+                    label: "Circumference",
+                    value: String(format: "%.2f cm", viewModel.measurements.circumferenceCm),
+                    showDivider: true
+                )
+                tableRow(
+                    label: "Length",
+                    value: String(format: "%.2f cm", viewModel.measurements.lengthCm),
+                    showDivider: true
+                )
+                tableRow(
+                    label: "Width",
+                    value: String(format: "%.2f cm", viewModel.measurements.widthCm),
+                    showDivider: true
+                )
+                tableRow(
+                    label: "Max Depth",
+                    value: String(format: "%.2f mm", viewModel.measurements.maxDepthMm),
+                    showDivider: true
+                )
+                tableRow(
+                    label: "Volume",
+                    value: String(format: "%.2f mL", viewModel.measurements.volumeMl),
+                    showDivider: false
+                )
+            }
+        }
+    }
 
-            WOSMetricTile(
-                icon: "cube",
-                iconColor: WOSColors.purple,
-                label: "Volume",
-                value: String(format: "%.1f", viewModel.measurements.volumeMl),
-                unit: "mL"
-            )
+    private func tableRow(label: String, value: String, showDivider: Bool) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(label)
+                    .font(.system(size: 17, weight: .regular, design: .default))
+                    .foregroundColor(WOSColors.textPrimary)
+                Spacer()
+                Text(value)
+                    .font(.system(size: 17, weight: .regular, design: .default))
+                    .foregroundColor(WOSColors.textSecondary)
+            }
+            .padding(.vertical, WOSSpacing.md)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(label): \(value)")
 
-            MeasurementCard(
-                icon: "ruler",
-                iconColor: WOSColors.orange,
-                label: "L \u{00D7} W",
-                value: String(format: "%.0f \u{00D7} %.0f", viewModel.measurements.lengthMm, viewModel.measurements.widthMm),
-                unit: "mm"
-            )
-
-            WOSMetricTile(
-                icon: "circle.dashed",
-                iconColor: WOSColors.blue,
-                label: "Perimeter",
-                value: String(format: "%.0f", viewModel.measurements.perimeterMm),
-                unit: "mm"
-            )
-
-            PUSHScoreView(score: viewModel.pushScore ?? PUSHScore())
+            if showDivider {
+                Divider()
+            }
         }
     }
 
