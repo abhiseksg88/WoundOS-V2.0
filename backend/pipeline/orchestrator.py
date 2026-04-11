@@ -165,9 +165,24 @@ class PipelineOrchestrator:
             )
             contour = contours[0].reshape(-1, 2) if contours else np.array([])
 
+            # Project the L/W endpoints from 3D world space into image pixels
+            endpoints_2d = self._project_3d_endpoints_to_image(
+                measurements.pop("_endpoints_3d", None),
+                intrinsics, pose,
+            )
+
             annotated = generate_annotated_image(
                 best_image, contour,
                 measurements["lengthMm"], measurements["widthMm"],
+                length_endpoints=(
+                    (endpoints_2d["length_p1"], endpoints_2d["length_p2"])
+                    if endpoints_2d else None
+                ),
+                width_endpoints=(
+                    (endpoints_2d["width_p1"], endpoints_2d["width_p2"])
+                    if endpoints_2d else None
+                ),
+                wound_label="W1",
             )
 
             # Depth heatmap from cropped mesh (signed distance from plane)
@@ -389,9 +404,24 @@ class PipelineOrchestrator:
         contours, _ = cv2.findContours(wound_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contour = contours[0].reshape(-1, 2) if contours else np.array([])
 
+        # Project the L/W endpoints from 3D world space into image pixels
+        endpoints_2d = self._project_3d_endpoints_to_image(
+            measurements.pop("_endpoints_3d", None),
+            intrinsics, poses[best_idx],
+        )
+
         annotated = generate_annotated_image(
             best_image, contour,
             measurements["lengthMm"], measurements["widthMm"],
+            length_endpoints=(
+                (endpoints_2d["length_p1"], endpoints_2d["length_p2"])
+                if endpoints_2d else None
+            ),
+            width_endpoints=(
+                (endpoints_2d["width_p1"], endpoints_2d["width_p2"])
+                if endpoints_2d else None
+            ),
+            wound_label="W1",
         )
 
         depth_heatmap_image = self._create_depth_heatmap_from_mask(
@@ -465,9 +495,24 @@ class PipelineOrchestrator:
         contours, _ = cv2.findContours(wound_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contour = contours[0].reshape(-1, 2) if contours else np.array([])
 
+        # Project the L/W endpoints from 3D world space into image pixels
+        endpoints_2d = self._project_3d_endpoints_to_image(
+            measurements.pop("_endpoints_3d", None),
+            intrinsics, poses[best_idx],
+        )
+
         annotated = generate_annotated_image(
             best_image, contour,
             measurements["lengthMm"], measurements["widthMm"],
+            length_endpoints=(
+                (endpoints_2d["length_p1"], endpoints_2d["length_p2"])
+                if endpoints_2d else None
+            ),
+            width_endpoints=(
+                (endpoints_2d["width_p1"], endpoints_2d["width_p2"])
+                if endpoints_2d else None
+            ),
+            wound_label="W1",
         )
         mask_b64 = generate_wound_mask_base64(wound_mask)
 
@@ -661,19 +706,30 @@ class PipelineOrchestrator:
         boundary_points: np.ndarray,
         tissue_comp: dict,
     ) -> dict:
-        """Compute all wound measurements from the mesh."""
+        """Compute all wound measurements from the mesh.
+
+        Also stores the 3D endpoints of the L and W axes under the key
+        ``_endpoints_3d`` so the caller can project them into the annotated image.
+        The underscore prefix marks this as an internal field that the JSON
+        serializer should strip before returning to the iOS client.
+        """
         from pipeline.measurement.plane_fitter import fit_plane_ransac
         from pipeline.measurement.surface_area import compute_surface_area_cm2
         from pipeline.measurement.depth_calc import compute_max_depth_mm, compute_avg_depth_mm
         from pipeline.measurement.volume import compute_volume_ml
-        from pipeline.measurement.dimensions import compute_length_width_mm, compute_perimeter_mm
+        from pipeline.measurement.dimensions import (
+            compute_length_width_with_endpoints,
+            compute_perimeter_mm,
+        )
 
         # Handle empty mesh
         if len(wound_vertices) < 3 or len(boundary_points) < 3:
             return {
                 "areaCm2": 0.0, "maxDepthMm": 0.0, "avgDepthMm": 0.0,
                 "volumeMl": 0.0, "lengthMm": 0.0, "widthMm": 0.0,
-                "perimeterMm": 0.0, "underminingMm": None, "tunnelingMm": None,
+                "perimeterMm": 0.0, "circumferenceCm": 0.0,
+                "underminingMm": None, "tunnelingMm": None,
+                "_endpoints_3d": None,
             }
 
         # Fit reference plane
@@ -689,9 +745,25 @@ class PipelineOrchestrator:
         # Volume
         volume = compute_volume_ml(wound_vertices, wound_faces, centroid, normal)
 
-        # Length, width, perimeter
-        length, width = compute_length_width_mm(boundary_points, centroid, normal)
+        # Length, width, perimeter (now also returning endpoint indices)
+        (
+            length, width,
+            l_p1_idx, l_p2_idx,
+            w_p1_idx, w_p2_idx,
+        ) = compute_length_width_with_endpoints(boundary_points, centroid, normal)
         perimeter = compute_perimeter_mm(boundary_points)
+
+        # Capture the four 3D endpoints (length L1, L2 and width W1, W2)
+        endpoints_3d = None
+        try:
+            endpoints_3d = {
+                "length_p1": boundary_points[l_p1_idx],
+                "length_p2": boundary_points[l_p2_idx],
+                "width_p1": boundary_points[w_p1_idx],
+                "width_p2": boundary_points[w_p2_idx],
+            }
+        except IndexError:
+            pass
 
         return {
             "areaCm2": round(area_cm2, 2),
@@ -701,9 +773,57 @@ class PipelineOrchestrator:
             "lengthMm": round(length, 1),
             "widthMm": round(width, 1),
             "perimeterMm": round(perimeter, 1),
+            "circumferenceCm": round(perimeter / 10.0, 2),  # mm → cm
             "underminingMm": None,
             "tunnelingMm": None,
+            "_endpoints_3d": endpoints_3d,
         }
+
+    def _project_3d_endpoints_to_image(
+        self,
+        endpoints_3d: dict | None,
+        intrinsics: dict,
+        pose: dict,
+    ) -> dict | None:
+        """Project the 3D L/W endpoints back into the reference image's pixel space.
+
+        Returns a dict with keys ``length_p1``, ``length_p2``, ``width_p1``,
+        ``width_p2`` mapped to (x, y) pixel coordinate numpy arrays, or None
+        if endpoints unavailable.
+        """
+        if endpoints_3d is None:
+            return None
+
+        try:
+            fx = intrinsics["fx"]
+            fy = intrinsics["fy"]
+            cx = intrinsics["cx"]
+            cy = intrinsics["cy"]
+
+            pose_c2w = np.array(pose["transform"], dtype=np.float64)
+            w2c = np.linalg.inv(pose_c2w)
+            R = w2c[:3, :3]
+            t = w2c[:3, 3]
+
+            def project(point_world: np.ndarray) -> np.ndarray:
+                pw = np.asarray(point_world, dtype=np.float64)
+                cam = R @ pw + t  # (3,)
+                # ARKit -Z forward: depth = -cam_z
+                z = -cam[2]
+                if z < 1e-6:
+                    return np.array([0.0, 0.0])
+                u = fx * cam[0] / -cam[2] + cx
+                v = fy * cam[1] / -cam[2] + cy
+                return np.array([u, v])
+
+            return {
+                "length_p1": project(endpoints_3d["length_p1"]),
+                "length_p2": project(endpoints_3d["length_p2"]),
+                "width_p1": project(endpoints_3d["width_p1"]),
+                "width_p2": project(endpoints_3d["width_p2"]),
+            }
+        except (KeyError, ValueError, np.linalg.LinAlgError):
+            return None
 
     def _create_depth_heatmap_from_mask(
         self,
