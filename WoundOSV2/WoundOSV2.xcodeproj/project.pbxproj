@@ -39,6 +39,7 @@
 		DD000000000000000000040 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000040; };
 		DD000000000000000000041 /* WoundOSV2.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000041; };
 		DD000000000000000000050 /* WoundOSV2Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000050; };
+		DD000000000000000000150 /* MeasurementParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000150; };
 		DD000000000000000000060 /* WoundOSV2UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000060; };
 		DD000000000000000000070 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = AE000000000000000000001; };
 		DD000000000000000000071 /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = AE000000000000000000002; };
@@ -76,8 +77,16 @@
 		DD000000000000000000113 /* OfflineScanQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000113; };
 		DD000000000000000000114 /* PlaneFitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000114; };
 		DD000000000000000000115 /* SurfaceAreaCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000115; };
-		DD000000000000000000116 /* DepthVolumeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000116; };
+		DD000000000000000000116 /* DepthCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000116; };
 		DD000000000000000000117 /* DimensionCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000117; };
+		DD000000000000000000130 /* VolumeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000130; };
+		DD000000000000000000131 /* RaycastProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000131; };
+		DD000000000000000000132 /* MeasurementEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000132; };
+		DD000000000000000000133 /* OnDeviceResultBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000133; };
+		DD000000000000000000134 /* WoundCaptureSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000134; };
+		DD000000000000000000135 /* PrimaryMeasurement.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000135; };
+		DD000000000000000000136 /* SnapshotCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000136; };
+		DD000000000000000000137 /* FrozenBoundaryEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000137; };
 		DD000000000000000000118 /* ImageProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000118; };
 		DD000000000000000000119 /* SegmentationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000119; };
 		DD000000000000000000120 /* LiDARScanPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000000000000000000120; };
@@ -137,6 +146,7 @@
 		CC000000000000000000041 /* WoundOSV2.xcdatamodeld */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodeld; path = WoundOSV2.xcdatamodeld; sourceTree = "<group>"; };
 		CC000000000000000000042 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CC000000000000000000050 /* WoundOSV2Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WoundOSV2Tests.swift; sourceTree = "<group>"; };
+		CC000000000000000000150 /* MeasurementParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementParityTests.swift; sourceTree = "<group>"; };
 		CC000000000000000000060 /* WoundOSV2UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WoundOSV2UITests.swift; sourceTree = "<group>"; };
 		CC000000000000000000080 /* ARSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARSessionManager.swift; sourceTree = "<group>"; };
 		CC000000000000000000081 /* CaptureContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureContainerView.swift; sourceTree = "<group>"; };
@@ -174,10 +184,18 @@
 		CC000000000000000000111 /* ReportPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportPreviewView.swift; sourceTree = "<group>"; };
 		CC000000000000000000112 /* LiDARDiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiDARDiagnosticsView.swift; sourceTree = "<group>"; };
 		CC000000000000000000113 /* OfflineScanQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineScanQueue.swift; sourceTree = "<group>"; };
-		CC000000000000000000114 /* PlaneFitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaneFitter.swift; sourceTree = "<group>"; };
-		CC000000000000000000115 /* SurfaceAreaCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceAreaCalculator.swift; sourceTree = "<group>"; };
-		CC000000000000000000116 /* DepthVolumeCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthVolumeCalculator.swift; sourceTree = "<group>"; };
-		CC000000000000000000117 /* DimensionCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DimensionCalculator.swift; sourceTree = "<group>"; };
+		CC000000000000000000114 /* PlaneFitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlaneFitter.swift; path = WoundOSV2/Services/Measurement/PlaneFitter.swift; sourceTree = SOURCE_ROOT; };
+		CC000000000000000000115 /* SurfaceAreaCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SurfaceAreaCalculator.swift; path = WoundOSV2/Services/Measurement/SurfaceAreaCalculator.swift; sourceTree = SOURCE_ROOT; };
+		CC000000000000000000116 /* DepthCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DepthCalculator.swift; path = WoundOSV2/Services/Measurement/DepthCalculator.swift; sourceTree = SOURCE_ROOT; };
+		CC000000000000000000117 /* DimensionCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DimensionCalculator.swift; path = WoundOSV2/Services/Measurement/DimensionCalculator.swift; sourceTree = SOURCE_ROOT; };
+		CC000000000000000000130 /* VolumeCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VolumeCalculator.swift; path = WoundOSV2/Services/Measurement/VolumeCalculator.swift; sourceTree = SOURCE_ROOT; };
+		CC000000000000000000131 /* RaycastProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RaycastProjection.swift; path = WoundOSV2/Services/Measurement/RaycastProjection.swift; sourceTree = SOURCE_ROOT; };
+		CC000000000000000000132 /* MeasurementEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MeasurementEngine.swift; path = WoundOSV2/Services/Measurement/MeasurementEngine.swift; sourceTree = SOURCE_ROOT; };
+		CC000000000000000000133 /* OnDeviceResultBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OnDeviceResultBridge.swift; path = WoundOSV2/Services/Measurement/OnDeviceResultBridge.swift; sourceTree = SOURCE_ROOT; };
+		CC000000000000000000134 /* WoundCaptureSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WoundCaptureSnapshot.swift; path = WoundOSV2/Models/WoundCaptureSnapshot.swift; sourceTree = SOURCE_ROOT; };
+		CC000000000000000000135 /* PrimaryMeasurement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PrimaryMeasurement.swift; path = WoundOSV2/Models/PrimaryMeasurement.swift; sourceTree = SOURCE_ROOT; };
+		CC000000000000000000136 /* SnapshotCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SnapshotCaptureView.swift; path = WoundOSV2/Features/Capture/SnapshotCaptureView.swift; sourceTree = SOURCE_ROOT; };
+		CC000000000000000000137 /* FrozenBoundaryEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FrozenBoundaryEditView.swift; path = WoundOSV2/Features/Boundary/FrozenBoundaryEditView.swift; sourceTree = SOURCE_ROOT; };
 		CC000000000000000000118 /* ImageProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageProcessing.swift; sourceTree = "<group>"; };
 		PP000000000000000000001 /* WoundOSV2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WoundOSV2.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		PP000000000000000000002 /* WoundOSV2Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WoundOSV2Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -315,6 +333,7 @@
 				CC000000000000000000100 /* BoundaryEditView.swift */,
 				CC000000000000000000101 /* BoundaryViewModel.swift */,
 				CC000000000000000000102 /* BezierPathEngine.swift */,
+				CC000000000000000000137 /* FrozenBoundaryEditView.swift */,
 			);
 			path = Boundary;
 			sourceTree = "<group>";
@@ -365,6 +384,7 @@
 				CC000000000000000000086 /* CoverageRadar.swift */,
 				CC000000000000000000087 /* MotionFeedback.swift */,
 				CC000000000000000000088 /* DistancePill.swift */,
+				CC000000000000000000136 /* SnapshotCaptureView.swift */,
 			);
 			path = Capture;
 			sourceTree = "<group>";
@@ -388,6 +408,8 @@
 				CC000000000000000000024 /* WoundMeasurement.swift */,
 				CC000000000000000000025 /* WoundScan.swift */,
 				CC000000000000000000120 /* LiDARScanPayload.swift */,
+				CC000000000000000000134 /* WoundCaptureSnapshot.swift */,
+				CC000000000000000000135 /* PrimaryMeasurement.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -413,8 +435,12 @@
 				CC000000000000000000028 /* ServerConfig.swift */,
 				CC000000000000000000114 /* PlaneFitter.swift */,
 				CC000000000000000000115 /* SurfaceAreaCalculator.swift */,
-				CC000000000000000000116 /* DepthVolumeCalculator.swift */,
+				CC000000000000000000116 /* DepthCalculator.swift */,
 				CC000000000000000000117 /* DimensionCalculator.swift */,
+				CC000000000000000000130 /* VolumeCalculator.swift */,
+				CC000000000000000000131 /* RaycastProjection.swift */,
+				CC000000000000000000132 /* MeasurementEngine.swift */,
+				CC000000000000000000133 /* OnDeviceResultBridge.swift */,
 				CC000000000000000000118 /* ImageProcessing.swift */,
 			);
 			path = Utilities;
@@ -450,6 +476,7 @@
 			isa = PBXGroup;
 			children = (
 				CC000000000000000000050 /* WoundOSV2Tests.swift */,
+				CC000000000000000000150 /* MeasurementParityTests.swift */,
 			);
 			path = WoundOSV2Tests;
 			sourceTree = "<group>";
@@ -673,13 +700,21 @@
 				DD000000000000000000113 /* OfflineScanQueue.swift in Sources */,
 				DD000000000000000000114 /* PlaneFitter.swift in Sources */,
 				DD000000000000000000115 /* SurfaceAreaCalculator.swift in Sources */,
-				DD000000000000000000116 /* DepthVolumeCalculator.swift in Sources */,
+				DD000000000000000000116 /* DepthCalculator.swift in Sources */,
 				DD000000000000000000117 /* DimensionCalculator.swift in Sources */,
 				DD000000000000000000118 /* ImageProcessing.swift in Sources */,
 				DD000000000000000000119 /* SegmentationService.swift in Sources */,
 				DD000000000000000000120 /* LiDARScanPayload.swift in Sources */,
 				DD000000000000000000121 /* ARMeshExporter.swift in Sources */,
 				DD000000000000000000122 /* DepthMapExporter.swift in Sources */,
+				DD000000000000000000130 /* VolumeCalculator.swift in Sources */,
+				DD000000000000000000131 /* RaycastProjection.swift in Sources */,
+				DD000000000000000000132 /* MeasurementEngine.swift in Sources */,
+				DD000000000000000000133 /* OnDeviceResultBridge.swift in Sources */,
+				DD000000000000000000134 /* WoundCaptureSnapshot.swift in Sources */,
+				DD000000000000000000135 /* PrimaryMeasurement.swift in Sources */,
+				DD000000000000000000136 /* SnapshotCaptureView.swift in Sources */,
+				DD000000000000000000137 /* FrozenBoundaryEditView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -688,6 +723,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DD000000000000000000050 /* WoundOSV2Tests.swift in Sources */,
+				DD000000000000000000150 /* MeasurementParityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

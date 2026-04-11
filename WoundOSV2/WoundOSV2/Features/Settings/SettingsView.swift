@@ -4,16 +4,29 @@ import ARKit
 struct SettingsView: View {
     @AppStorage("serverBaseURL") private var serverBaseURL: String = ServerConfig.defaultBaseURL
     @AppStorage("useMockServer") private var useMockServer: Bool = true
+    @AppStorage("useOnDeviceMeasurement") private var useOnDeviceMeasurement: Bool = true
 
     var body: some View {
         NavigationStack {
             Form {
+                measurementModeSection
                 serverSection
                 deviceSection
                 lidarDiagnosticsSection
                 aboutSection
             }
             .navigationTitle("Settings")
+        }
+    }
+
+    // MARK: - Measurement mode
+    private var measurementModeSection: some View {
+        Section {
+            Toggle("On-Device Measurement", isOn: $useOnDeviceMeasurement)
+        } header: {
+            Text("Measurement")
+        } footer: {
+            Text("Single-shot freeze, draw the boundary, and measure entirely on the iPhone using LiDAR. Disable to use the legacy multi-view server pipeline.")
         }
     }
 

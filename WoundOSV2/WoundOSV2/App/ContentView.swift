@@ -3,16 +3,23 @@ import SwiftUI
 struct ContentView: View {
     @State private var selectedTab = 0
     @State private var showCapture = false
+    @State private var showSnapshotCapture = false
+    @State private var showFrozenBoundary = false
     @State private var showProcessing = false
     @State private var showBoundary = false
     @State private var showResults = false
     @State private var capturedFrames: [SelectedFrame] = []
     @State private var capturedLiDARPayload: LiDARScanPayload?
     @State private var capturedWoundPoint: CGPoint?
+    @State private var capturedSnapshot: WoundCaptureSnapshot?
     @State private var serverResponse: ServerResponse?
     @State private var processingViewModel: ProcessingViewModel?
     @State private var resultsViewModel: ResultsViewModel?
     @AppStorage("useMockServer") private var useMockServer: Bool = true
+    /// On-device clinical critical path: single-shot freeze + draw + measure.
+    /// Defaults to true; the developer toggle in Settings can disable it to fall
+    /// back to the multi-view server pipeline.
+    @AppStorage("useOnDeviceMeasurement") private var useOnDeviceMeasurement: Bool = true
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -43,8 +50,46 @@ struct ContentView: View {
         .tint(WOSColors.accent)
         .onChange(of: selectedTab) { newValue in
             if newValue == 1 {
-                showCapture = true
+                if useOnDeviceMeasurement {
+                    showSnapshotCapture = true
+                } else {
+                    showCapture = true
+                }
                 selectedTab = 0
+            }
+        }
+        .fullScreenCover(isPresented: $showSnapshotCapture) {
+            SnapshotCaptureView { snapshot in
+                self.capturedSnapshot = snapshot
+                showSnapshotCapture = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    showFrozenBoundary = true
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showFrozenBoundary) {
+            NavigationStack {
+                if let snap = capturedSnapshot {
+                    FrozenBoundaryEditView(snapshot: snap) { measurement in
+                        let response = OnDeviceResultBridge.makeResponse(
+                            snapshot: snap,
+                            measurement: measurement
+                        )
+                        self.serverResponse = response
+                        showFrozenBoundary = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showResults = true
+                        }
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Cancel") {
+                                showFrozenBoundary = false
+                                capturedSnapshot = nil
+                            }
+                        }
+                    }
+                }
             }
         }
         .fullScreenCover(isPresented: $showCapture) {
@@ -139,6 +184,7 @@ struct ContentView: View {
                                     capturedFrames = []
                                     capturedLiDARPayload = nil
                                     capturedWoundPoint = nil
+                                    capturedSnapshot = nil
                                     processingViewModel = nil
                                     resultsViewModel = nil
                                 }
