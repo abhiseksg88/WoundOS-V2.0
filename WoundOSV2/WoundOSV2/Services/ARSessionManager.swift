@@ -1,6 +1,7 @@
 import Foundation
 import ARKit
 import Combine
+import simd
 
 struct SelectedFrame {
     let index: Int
@@ -8,6 +9,18 @@ struct SelectedFrame {
     let pose: CameraPose
     let intrinsics: CameraIntrinsics
     let timestamp: TimeInterval
+    /// Sharpness score (Laplacian variance) used for best-frame selection.
+    var sharpnessScore: Float = 0
+}
+
+/// Capture mode determines how the wound is reconstructed.
+enum CaptureMode: String {
+    /// LiDAR-native: ARKit scene reconstruction mesh + 1 best frame.
+    /// Available on iPhone 12 Pro+, iPad Pro. Total backend time: 3-5s.
+    case lidar
+    /// Multi-view photogrammetry: 30 frames + Depth Pro + COLMAP MVS.
+    /// Fallback for non-LiDAR devices. Total backend time: 30-60s.
+    case multiview
 }
 
 final class ARSessionManager: NSObject, ObservableObject {
@@ -21,6 +34,22 @@ final class ARSessionManager: NSObject, ObservableObject {
     @Published var hasSceneDepth: Bool = false
     @Published var latestCameraTransform: (simd_float4x4, TimeInterval)?
 
+    /// Active capture mode (defaults to LiDAR if available).
+    @Published var captureMode: CaptureMode = .multiview
+
+    /// Number of ARMeshAnchor objects collected so far (LiDAR mode only).
+    @Published var meshAnchorCount: Int = 0
+
+    /// Best single frame for LiDAR mode (sharpest, captured during session).
+    @Published var bestLiDARFrame: SelectedFrame?
+
+    /// Most recent ARFrame.sceneDepth.depthMap (LiDAR mode, optional).
+    private(set) var latestDepthMap: CVPixelBuffer?
+
+    /// All ARMeshAnchor objects collected during this session, keyed by identifier.
+    /// In .lidar mode, ARKit emits these via session(_:didAdd:) and session(_:didUpdate:).
+    private var meshAnchorsByID: [UUID: ARMeshAnchor] = [:]
+
     private(set) var selectedFrames: [SelectedFrame] = []
     private var frameSelector: FrameSelector?
     private let processingQueue = DispatchQueue(label: "com.careplix.woundos.frameprocessing", qos: .userInitiated)
@@ -29,6 +58,8 @@ final class ARSessionManager: NSObject, ObservableObject {
         super.init()
         session.delegate = self
         isLiDARAvailable = ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh)
+        // Auto-select LiDAR mode if hardware supports it
+        captureMode = isLiDARAvailable ? .lidar : .multiview
     }
 
     func startSession() {
@@ -53,9 +84,14 @@ final class ARSessionManager: NSObject, ObservableObject {
             config.sceneReconstruction = .mesh
         }
 
+        // Reset all state
         selectedFrames = []
         selectedFrameCount = 0
         totalFrameCount = 0
+        meshAnchorsByID = [:]
+        meshAnchorCount = 0
+        bestLiDARFrame = nil
+        latestDepthMap = nil
         frameSelector = FrameSelector()
 
         session.run(config, options: [.resetTracking, .removeExistingAnchors])
@@ -69,8 +105,66 @@ final class ARSessionManager: NSObject, ObservableObject {
         selectedFrames = []
         selectedFrameCount = 0
         totalFrameCount = 0
+        meshAnchorsByID = [:]
+        meshAnchorCount = 0
+        bestLiDARFrame = nil
+        latestDepthMap = nil
         frameSelector = FrameSelector()
         startSession()
+    }
+
+    // MARK: - LiDAR Finalization
+
+    /// Finalize the LiDAR capture and produce a payload ready for upload.
+    ///
+    /// **Must be called after `pauseSession()`** so the mesh anchor list is stable.
+    /// Runs OBJ serialization on a background queue.
+    ///
+    /// - Parameters:
+    ///   - cropRadius: Sphere crop radius in meters around the camera's look-at point.
+    ///     Use ~0.20m to limit upload to the wound region (HIPAA + bandwidth).
+    /// - Returns: A LiDARScanPayload, or nil if no mesh / no best frame available.
+    func finalizeLiDARPayload(cropRadius: Float) async -> LiDARScanPayload? {
+        guard let bestFrame = bestLiDARFrame else { return nil }
+        let anchorsSnapshot = Array(meshAnchorsByID.values)
+        guard !anchorsSnapshot.isEmpty else { return nil }
+
+        // Compute crop center: camera position + look-at × planeDistance
+        let poseRows = bestFrame.pose.transform
+        let camPos = SIMD3<Float>(poseRows[0][3], poseRows[1][3], poseRows[2][3])
+        let forward = SIMD3<Float>(-poseRows[0][2], -poseRows[1][2], -poseRows[2][2])  // ARKit -Z forward
+        let distance = detectedPlaneDistance ?? 0.20
+        let cropCenter = camPos + forward * distance
+
+        // Run OBJ serialization off the main thread
+        let objData: Data? = await withCheckedContinuation { continuation in
+            processingQueue.async {
+                let data = ARMeshExporter.serializeToOBJ(
+                    anchors: anchorsSnapshot,
+                    cropCenterWorld: cropCenter,
+                    cropRadius: cropRadius
+                )
+                continuation.resume(returning: data)
+            }
+        }
+
+        guard let meshOBJ = objData else { return nil }
+
+        // Optional: encode the latest depth map as 16-bit PNG
+        var depthPNG: Data? = nil
+        if let depthMap = latestDepthMap {
+            depthPNG = DepthMapExporter.encodePNG16(depthMap: depthMap, maxMeters: 5.0)
+        }
+
+        let bounds = ARMeshExporter.computeBounds(anchors: anchorsSnapshot)
+
+        return LiDARScanPayload(
+            bestFrame: bestFrame,
+            meshOBJData: meshOBJ,
+            depthPNG: depthPNG,
+            anchorCount: anchorsSnapshot.count,
+            worldBoundsMeters: bounds
+        )
     }
 
     func extractIntrinsics(from camera: ARCamera) -> CameraIntrinsics {
@@ -125,6 +219,48 @@ final class ARSessionManager: NSObject, ObservableObject {
 }
 
 extension ARSessionManager: ARSessionDelegate {
+
+    // MARK: - Mesh anchor lifecycle (LiDAR mode)
+
+    func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
+        guard captureMode == .lidar else { return }
+        var added = 0
+        for anchor in anchors {
+            if let meshAnchor = anchor as? ARMeshAnchor {
+                meshAnchorsByID[meshAnchor.identifier] = meshAnchor
+                added += 1
+            }
+        }
+        if added > 0 {
+            DispatchQueue.main.async { [weak self] in
+                self?.meshAnchorCount = self?.meshAnchorsByID.count ?? 0
+            }
+        }
+    }
+
+    func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
+        guard captureMode == .lidar else { return }
+        for anchor in anchors {
+            if let meshAnchor = anchor as? ARMeshAnchor {
+                meshAnchorsByID[meshAnchor.identifier] = meshAnchor
+            }
+        }
+    }
+
+    func session(_ session: ARSession, didRemove anchors: [ARAnchor]) {
+        guard captureMode == .lidar else { return }
+        for anchor in anchors {
+            if anchor is ARMeshAnchor {
+                meshAnchorsByID.removeValue(forKey: anchor.identifier)
+            }
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.meshAnchorCount = self?.meshAnchorsByID.count ?? 0
+        }
+    }
+
+    // MARK: - Frame updates
+
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
         // Lightweight updates on main thread
         DispatchQueue.main.async { [weak self] in
@@ -135,11 +271,63 @@ extension ARSessionManager: ARSessionDelegate {
             self.latestCameraTransform = (frame.camera.transform, frame.timestamp)
         }
 
-        // Heavy processing (JPEG compression) on background queue
+        // Cache the latest depth map for LiDAR mode
+        if captureMode == .lidar, let sceneDepth = frame.sceneDepth {
+            latestDepthMap = sceneDepth.depthMap
+        }
+
+        let camera = frame.camera
+
+        if captureMode == .lidar {
+            // LiDAR mode: just track the single best frontal frame.
+            // Frame must be normal tracking and reasonably frontal to a plane.
+            guard case .normal = camera.trackingState else { return }
+            guard let selector = frameSelector else { return }
+
+            let pose = extractPose(from: camera, at: frame.timestamp)
+            let pixelBuffer = frame.capturedImage
+
+            // Compute sharpness; only update if better than current best
+            let sharpness = selector.computeSharpness(pixelBuffer: pixelBuffer)
+            if let current = bestLiDARFrame, current.sharpnessScore >= sharpness {
+                return
+            }
+
+            // Compress to JPEG on background queue
+            CVPixelBufferRetain(pixelBuffer)
+            let intrinsics = extractIntrinsics(from: camera)
+
+            processingQueue.async { [weak self] in
+                guard let self = self else {
+                    CVPixelBufferRelease(pixelBuffer)
+                    return
+                }
+                let jpegData = self.compressToJPEG(pixelBuffer: pixelBuffer)
+                CVPixelBufferRelease(pixelBuffer)
+
+                guard let data = jpegData else { return }
+
+                var selected = SelectedFrame(
+                    index: 0,
+                    jpegData: data,
+                    pose: pose,
+                    intrinsics: intrinsics,
+                    timestamp: frame.timestamp
+                )
+                selected.sharpnessScore = sharpness
+
+                DispatchQueue.main.async {
+                    self.bestLiDARFrame = selected
+                    self.selectedFrameCount = 1
+                }
+            }
+            return
+        }
+
+        // MULTIVIEW MODE: Heavy processing (JPEG compression) on background queue
         guard selectedFrameCount < ServerConfig.maxFrames else { return }
         guard let selector = frameSelector else { return }
 
-        let camera = frame.camera
         let pose = extractPose(from: camera, at: frame.timestamp)
 
         if selector.shouldSelect(frame: frame, pose: pose) {

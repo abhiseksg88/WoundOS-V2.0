@@ -47,6 +47,248 @@ class PipelineOrchestrator:
             self._segmenter = get_sam2_segmenter()
         return self._segmenter
 
+    def process_lidar_scan(
+        self,
+        job_id: str,
+        frame_bytes: bytes,
+        pose: dict,
+        intrinsics: dict,
+        mesh_obj_bytes: bytes,
+        wound_point: str | None = None,
+    ) -> None:
+        """Run the LiDAR-native pipeline (Tier 1 only, no COLMAP).
+
+        Uses the iPhone LiDAR scene reconstruction mesh directly instead of
+        running Depth Pro + TSDF + COLMAP MVS. Total time: 3-5 seconds.
+
+        Steps:
+        1. Parse OBJ mesh from bytes (already in ARKit world coordinates)
+        2. SAM 2 segmentation on the single best frame
+        3. Ray-cast wound point against mesh to find world-space center
+        4. Crop mesh to sphere around wound (8cm radius)
+        5. Project wound mask onto cropped mesh (reuses _extract_wound_submesh)
+        6. RANSAC plane fit + measurements (reuses _compute_measurements)
+        7. Visualizations + PUSH score + clinical summary
+        """
+        from pipeline.reconstruction.arkit_mesh import (
+            load_obj_bytes,
+            crop_to_sphere,
+            estimate_wound_center_world,
+        )
+
+        start_time = time.time()
+
+        try:
+            firestore.update_job_status(
+                job_id, JobStatus.TIER1_PROCESSING, tier=1, progress=0.1
+            )
+
+            # 1. Parse OBJ mesh
+            vertices, faces = load_obj_bytes(mesh_obj_bytes)
+            if len(faces) < settings.lidar_mesh_min_faces:
+                raise ValueError(
+                    f"LiDAR mesh has too few faces ({len(faces)} < "
+                    f"{settings.lidar_mesh_min_faces}). Move phone slowly "
+                    f"around the wound for at least 2 seconds."
+                )
+
+            # 2. Decode the single best frame
+            best_image = self._decode_frame(frame_bytes)
+            firestore.update_job_status(
+                job_id, JobStatus.TIER1_PROCESSING, tier=1, progress=0.2
+            )
+
+            # 3. SAM 2 segmentation on the frame
+            point = self._parse_wound_point(wound_point, best_image.shape)
+            wound_mask = self.segmenter.segment(best_image, point_prompt=point)
+            firestore.update_job_status(
+                job_id, JobStatus.TIER1_PROCESSING, tier=1, progress=0.4
+            )
+
+            # 4. Tissue classification (HSV-based, reused)
+            from pipeline.segmentation.tissue import classify_tissue
+            tissue_comp = classify_tissue(best_image, wound_mask)
+
+            # 5. Find wound center in world space via ray-cast
+            pose_c2w = np.array(pose["transform"], dtype=np.float64)
+            wound_point_norm = None
+            if wound_point:
+                try:
+                    parts = wound_point.split(",")
+                    wound_point_norm = (float(parts[0]), float(parts[1]))
+                except (ValueError, IndexError):
+                    pass
+
+            wound_center_world = estimate_wound_center_world(
+                pose_c2w, intrinsics, wound_point_norm, vertices, faces
+            )
+            logger.info(
+                "Wound center estimated at world position: %s",
+                wound_center_world.tolist(),
+            )
+
+            # 6. Crop mesh to sphere around wound
+            cropped_verts, cropped_faces = crop_to_sphere(
+                vertices, faces, wound_center_world,
+                radius_m=settings.lidar_crop_radius_m,
+            )
+
+            if len(cropped_faces) < 50:
+                raise ValueError(
+                    f"Cropped wound region has too few faces ({len(cropped_faces)}). "
+                    f"Wound point may be incorrect or mesh too sparse in this region."
+                )
+
+            firestore.update_job_status(
+                job_id, JobStatus.TIER1_PROCESSING, tier=1, progress=0.6
+            )
+
+            # 7. Extract wound submesh via mask projection (REUSED unchanged)
+            wound_verts, wound_faces, boundary_points = self._extract_wound_submesh(
+                cropped_verts, cropped_faces, wound_mask, intrinsics, pose
+            )
+
+            # 8. Compute measurements (REUSED unchanged)
+            measurements = self._compute_measurements(
+                wound_verts, wound_faces, boundary_points, tissue_comp
+            )
+            firestore.update_job_status(
+                job_id, JobStatus.TIER1_PROCESSING, tier=1, progress=0.8
+            )
+
+            # 9. Visualizations
+            from pipeline.visualization.annotated_image import generate_annotated_image
+            from pipeline.visualization.wound_mask import generate_wound_mask_base64
+
+            contours, _ = cv2.findContours(
+                wound_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            contour = contours[0].reshape(-1, 2) if contours else np.array([])
+
+            annotated = generate_annotated_image(
+                best_image, contour,
+                measurements["lengthMm"], measurements["widthMm"],
+            )
+
+            # Depth heatmap from cropped mesh (signed distance from plane)
+            depth_heatmap = self._create_lidar_depth_heatmap(
+                best_image, wound_mask, wound_verts, intrinsics, pose,
+                measurements.get("maxDepthMm", 6.0),
+            )
+
+            mask_b64 = generate_wound_mask_base64(wound_mask)
+
+            # 10. Export the cropped wound mesh as OBJ for the iOS 3D viewer
+            from pipeline.reconstruction.tsdf import mesh_to_obj_bytes
+            try:
+                wound_mesh_o3d = trimesh.Trimesh(
+                    vertices=wound_verts, faces=wound_faces, process=False
+                )
+                obj_bytes_out = wound_mesh_o3d.export(file_type="obj").encode("utf-8")
+                obj_b64 = base64.b64encode(obj_bytes_out).decode("utf-8")
+            except Exception as e:
+                logger.warning("Failed to export wound mesh: %s", e)
+                obj_b64 = None
+
+            # 11. PUSH score + clinical summary (REUSED)
+            from pipeline.measurement.push_score import compute_push_score
+            push = compute_push_score(measurements["areaCm2"], tissue_comp)
+
+            from pipeline.clinical.summary import generate_clinical_summary
+            summary = generate_clinical_summary(measurements, tissue_comp, push)
+
+            elapsed_ms = int((time.time() - start_time) * 1000)
+
+            result = {
+                "measurements": measurements,
+                "annotatedImageBase64": annotated,
+                "depthHeatmapBase64": depth_heatmap,
+                "woundMaskBase64": mask_b64,
+                "meshOBJData": obj_b64,
+                "splatURL": None,
+                "clinicalSummary": summary,
+                "pushScore": push,
+                "processingTimeMs": elapsed_ms,
+                "quality": "gold",  # LiDAR is always gold-tier
+            }
+
+            # LiDAR pipeline is single-tier — write as final result directly
+            firestore.update_job_final_result(job_id, result, measurement_delta=None)
+            logger.info(
+                "LiDAR pipeline complete for job %s in %dms",
+                job_id, elapsed_ms,
+            )
+
+        except Exception as e:
+            logger.error(
+                "LiDAR pipeline failed for job %s: %s",
+                job_id, e, exc_info=True,
+            )
+            firestore.update_job_status(job_id, JobStatus.FAILED, error=str(e))
+            raise
+
+    def _create_lidar_depth_heatmap(
+        self,
+        image: np.ndarray,
+        wound_mask: np.ndarray,
+        wound_vertices: np.ndarray,
+        intrinsics: dict,
+        pose: dict,
+        max_depth_mm: float,
+    ) -> str:
+        """Generate depth heatmap by rasterizing per-pixel depth from wound vertices.
+
+        Projects each wound vertex back into image space and rasterizes its
+        signed distance from the wound plane.
+        """
+        from pipeline.visualization.depth_heatmap import generate_depth_heatmap
+
+        h, w = image.shape[:2]
+        depth_mm_map = np.zeros((h, w), dtype=np.float32)
+
+        if len(wound_vertices) == 0:
+            return generate_depth_heatmap(
+                image, wound_mask, depth_mm_map, max_depth_mm=max(max_depth_mm, 1.0)
+            )
+
+        try:
+            # Fit a plane to wound vertices to compute signed distances
+            from pipeline.measurement.plane_fitter import fit_plane_svd
+            centroid, normal = fit_plane_svd(wound_vertices)
+            distances = np.abs((wound_vertices - centroid) @ normal) * 1000.0  # mm
+
+            # Project vertices back to image space
+            pose_c2w = np.array(pose["transform"], dtype=np.float64)
+            w2c = np.linalg.inv(pose_c2w)
+            R = w2c[:3, :3]
+            t = w2c[:3, 3]
+            cam_verts = (R @ wound_vertices.T).T + t  # (N, 3)
+
+            depths = -cam_verts[:, 2]  # ARKit -Z forward
+            valid = depths > 1e-6
+
+            fx = intrinsics["fx"]
+            fy = intrinsics["fy"]
+            cx = intrinsics["cx"]
+            cy = intrinsics["cy"]
+
+            px = (fx * cam_verts[valid, 0] / -cam_verts[valid, 2] + cx).astype(int)
+            py = (fy * cam_verts[valid, 1] / -cam_verts[valid, 2] + cy).astype(int)
+            d = distances[valid]
+
+            in_bounds = (px >= 0) & (px < w) & (py >= 0) & (py < h)
+            depth_mm_map[py[in_bounds], px[in_bounds]] = d[in_bounds]
+
+            # Restrict to wound mask
+            depth_mm_map[wound_mask <= 127] = 0
+        except Exception as e:
+            logger.warning("Depth heatmap rasterization failed: %s", e)
+
+        return generate_depth_heatmap(
+            image, wound_mask, depth_mm_map,
+            max_depth_mm=max(max_depth_mm, 1.0),
+        )
+
     def process_scan(
         self,
         job_id: str,

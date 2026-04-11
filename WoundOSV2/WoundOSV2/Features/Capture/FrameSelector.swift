@@ -52,6 +52,59 @@ final class FrameSelector {
         return Float(selectedCount) * ServerConfig.minParallaxDegrees
     }
 
+    /// Public wrapper around the Laplacian variance sharpness computation.
+    /// Used by ARSessionManager LiDAR mode to score "best frame" candidates.
+    /// Returns the variance directly (higher = sharper) instead of a boolean.
+    func computeSharpness(pixelBuffer: CVPixelBuffer) -> Float {
+        return laplacianVariance(pixelBuffer: pixelBuffer)
+    }
+
+    private func laplacianVariance(pixelBuffer: CVPixelBuffer) -> Float {
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+
+        let cropX = Int(Double(width) * 0.2)
+        let cropY = Int(Double(height) * 0.2)
+        let cropW = Int(Double(width) * 0.6)
+        let cropH = Int(Double(height) * 0.6)
+
+        guard let baseAddress = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0) else { return 0 }
+        let bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0)
+
+        var grayPixels = [Float](repeating: 0, count: cropW * cropH)
+        for row in 0..<cropH {
+            let srcRow = baseAddress.advanced(by: (cropY + row) * bytesPerRow + cropX)
+            for col in 0..<cropW {
+                grayPixels[row * cropW + col] = Float(srcRow.load(fromByteOffset: col, as: UInt8.self))
+            }
+        }
+
+        let count = cropW * cropH
+        guard count > 4 else { return 0 }
+
+        var laplacianValues = [Float](repeating: 0, count: count)
+        for row in 1..<(cropH - 1) {
+            for col in 1..<(cropW - 1) {
+                let idx = row * cropW + col
+                let lap = -4 * grayPixels[idx]
+                    + grayPixels[idx - 1]
+                    + grayPixels[idx + 1]
+                    + grayPixels[idx - cropW]
+                    + grayPixels[idx + cropW]
+                laplacianValues[idx] = lap
+            }
+        }
+
+        var mean: Float = 0
+        var meanSq: Float = 0
+        vDSP_meanv(laplacianValues, 1, &mean, vDSP_Length(count))
+        vDSP_measqv(laplacianValues, 1, &meanSq, vDSP_Length(count))
+        return meanSq - mean * mean
+    }
+
     private func accept(pose: CameraPose, frame: ARFrame) {
         lastSelectedPose = pose
         selectedCount += 1

@@ -22,4 +22,17 @@ struct ServerConfig {
     static let exposureTolerance: Float = 0.15
     static let optimalDistanceRange: ClosedRange<Float> = 0.12...0.35
     static let minArcCoverageDegrees: Float = 120.0
+
+    // MARK: - LiDAR-native pipeline (Tier 1)
+    /// Form-field name used to indicate LiDAR mode to the backend.
+    static let lidarModeParamName = "lidar"
+    /// Minimum capture duration before LiDAR completion is allowed (seconds).
+    static let lidarCaptureMinDurationSeconds: TimeInterval = 2.0
+    /// Maximum LiDAR capture duration before forced completion (seconds).
+    static let lidarCaptureMaxDurationSeconds: TimeInterval = 8.0
+    /// On-device sphere crop radius around the camera look-at point (meters).
+    /// Larger = more upload bandwidth but more context for plane fitting.
+    static let lidarCaptureCropRadius: Float = 0.20
+    /// Minimum number of ARMeshAnchor objects required before allowing finalization.
+    static let lidarMinMeshAnchors: Int = 3
 }

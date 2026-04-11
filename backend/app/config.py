@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     tsdf_voxel_length: float = 0.0005  # 0.5mm
     tsdf_sdf_trunc: float = 0.004  # 4mm
 
+    # LiDAR-native pipeline
+    enable_lidar_mode: bool = True
+    lidar_mesh_max_bytes: int = 5_000_000  # 5MB upload cap
+    lidar_crop_radius_m: float = 0.08  # 8cm sphere around wound center
+    lidar_mesh_min_faces: int = 200  # Minimum face count to accept
+
     # Server
     host: str = "0.0.0.0"
     port: int = 8080

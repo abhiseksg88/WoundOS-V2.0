@@ -17,14 +17,29 @@ final class CaptureViewModel: ObservableObject {
     @Published var angularVelocity: Float = 0
     @Published var arcCoverage: Float = 0
     @Published var isLiDAREnhanced: Bool = false
+    @Published var meshAnchorCount: Int = 0
+    /// User-tappable wound center in normalized image coordinates [0,1].
+    @Published var woundPointNormalized: CGPoint?
 
     let sessionManager = ARSessionManager()
     private var cancellables = Set<AnyCancellable>()
     private var lastPoseTimestamp: TimeInterval = 0
     private var lastForwardVector: simd_float3?
+    private var captureStartTime: Date?
 
+    var captureMode: CaptureMode { sessionManager.captureMode }
     var targetFrames: Int { ServerConfig.targetFrames }
-    var progress: Double { Double(selectedFrameCount) / Double(targetFrames) }
+    var progress: Double {
+        if captureMode == .lidar {
+            // For LiDAR mode, progress is based on time + mesh anchor count
+            guard let start = captureStartTime else { return 0 }
+            let elapsed = Date().timeIntervalSince(start)
+            let timeFraction = min(elapsed / ServerConfig.lidarCaptureMinDurationSeconds, 1.0)
+            let anchorFraction = min(Double(meshAnchorCount) / Double(ServerConfig.lidarMinMeshAnchors), 1.0)
+            return min(timeFraction, anchorFraction)
+        }
+        return Double(selectedFrameCount) / Double(targetFrames)
+    }
 
     var distanceStatus: DistanceStatus {
         guard let dist = planeDistance else { return .unknown }
@@ -53,6 +68,7 @@ final class CaptureViewModel: ObservableObject {
 
     func startCapture() {
         state = .positioning
+        captureStartTime = Date()
         sessionManager.startSession()
         isLiDAREnhanced = sessionManager.isLiDARAvailable
     }
@@ -65,11 +81,28 @@ final class CaptureViewModel: ObservableObject {
         state = .ready
         lastPoseTimestamp = 0
         lastForwardVector = nil
+        captureStartTime = nil
+        woundPointNormalized = nil
         sessionManager.resetSession()
     }
 
     var selectedFrames: [SelectedFrame] {
         sessionManager.selectedFrames
+    }
+
+    /// For LiDAR mode: finalize capture and produce a payload ready for upload.
+    /// **Pauses the session before serialization** so anchors are stable.
+    func finalizeLiDARCapture() async -> LiDARScanPayload? {
+        // Pause first so the anchor list is stable for OBJ serialization
+        sessionManager.pauseSession()
+        return await sessionManager.finalizeLiDARPayload(
+            cropRadius: ServerConfig.lidarCaptureCropRadius
+        )
+    }
+
+    /// User taps the screen at this normalized position to mark the wound center.
+    func setWoundPoint(_ point: CGPoint) {
+        woundPointNormalized = point
     }
 
     private func setupBindings() {
@@ -90,9 +123,21 @@ final class CaptureViewModel: ObservableObject {
                 self.selectedFrameCount = count
                 self.arcCoverage = Float(count) * ServerConfig.minParallaxDegrees
 
-                if count >= ServerConfig.targetFrames && self.arcCoverage >= ServerConfig.minArcCoverageDegrees {
-                    self.completeCapture()
+                // Multi-view auto-complete (Tier 2)
+                if self.captureMode == .multiview {
+                    if count >= ServerConfig.targetFrames && self.arcCoverage >= ServerConfig.minArcCoverageDegrees {
+                        self.completeCapture()
+                    }
                 }
+            }
+            .store(in: &cancellables)
+
+        sessionManager.$meshAnchorCount
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] count in
+                guard let self = self else { return }
+                self.meshAnchorCount = count
+                self.checkLiDARCompletion()
             }
             .store(in: &cancellables)
 
@@ -106,8 +151,38 @@ final class CaptureViewModel: ObservableObject {
             .sink { [weak self] transformData in
                 guard let self = self, let (transform, timestamp) = transformData else { return }
                 self.updateAngularVelocity(transform: transform, timestamp: timestamp)
+                self.checkLiDARCompletion()
             }
             .store(in: &cancellables)
+    }
+
+    private func checkLiDARCompletion() {
+        guard captureMode == .lidar, state == .capturing else { return }
+        guard let start = captureStartTime else { return }
+
+        let elapsed = Date().timeIntervalSince(start)
+
+        // Forced completion if we've been capturing too long
+        if elapsed > ServerConfig.lidarCaptureMaxDurationSeconds {
+            completeCapture()
+            return
+        }
+
+        // Normal completion: minimum time + minimum mesh anchors + best frame available
+        let hasMinTime = elapsed >= ServerConfig.lidarCaptureMinDurationSeconds
+        let hasMinAnchors = meshAnchorCount >= ServerConfig.lidarMinMeshAnchors
+        let hasBestFrame = sessionManager.bestLiDARFrame != nil
+        let isTracking = trackingState == .normal
+
+        if hasMinTime && hasMinAnchors && hasBestFrame && isTracking {
+            // Auto-complete after minimum criteria met. The user can also tap manually.
+            // For now we let the user tap "Capture" — see CaptureContainerView.
+        }
+    }
+
+    /// Manual completion trigger from the user tapping "Capture" in LiDAR mode.
+    func userCompleteCapture() {
+        completeCapture()
     }
 
     private func updateAngularVelocity(transform: simd_float4x4, timestamp: TimeInterval) {

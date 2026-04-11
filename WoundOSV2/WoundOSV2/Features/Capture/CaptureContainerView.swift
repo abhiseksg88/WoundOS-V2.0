@@ -1,16 +1,29 @@
 import SwiftUI
 import ARKit
 
+/// Result of a capture session: either multi-view frames (Tier 2) or
+/// a LiDAR payload (Tier 1).
+enum CaptureResult {
+    case multiview(frames: [SelectedFrame], woundPoint: CGPoint?)
+    case lidar(payload: LiDARScanPayload, woundPoint: CGPoint?)
+}
+
 struct CaptureContainerView: View {
     @StateObject private var viewModel = CaptureViewModel()
     @Environment(\.dismiss) private var dismiss
-    var onComplete: (([SelectedFrame]) -> Void)?
+    var onComplete: ((CaptureResult) -> Void)?
+
+    @State private var isFinalizing: Bool = false
 
     var body: some View {
         ZStack {
             if ARWorldTrackingConfiguration.isSupported {
                 arCameraView
+                tapMarkerOverlay
                 captureOverlay
+                if isFinalizing {
+                    finalizingOverlay
+                }
             } else {
                 cameraNotAvailableView
             }
@@ -24,9 +37,39 @@ struct CaptureContainerView: View {
         }
         .onChange(of: viewModel.state) { newState in
             if newState == .complete {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    onComplete?(viewModel.selectedFrames)
+                handleCaptureComplete()
+            }
+        }
+    }
+
+    private func handleCaptureComplete() {
+        switch viewModel.captureMode {
+        case .lidar:
+            isFinalizing = true
+            Task {
+                let payload = await viewModel.finalizeLiDARCapture()
+                await MainActor.run {
+                    isFinalizing = false
+                    if let payload = payload {
+                        onComplete?(.lidar(
+                            payload: payload,
+                            woundPoint: viewModel.woundPointNormalized
+                        ))
+                    } else {
+                        // Fallback: treat as failed multiview if LiDAR finalization failed
+                        onComplete?(.multiview(
+                            frames: viewModel.selectedFrames,
+                            woundPoint: viewModel.woundPointNormalized
+                        ))
+                    }
                 }
+            }
+        case .multiview:
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                onComplete?(.multiview(
+                    frames: viewModel.selectedFrames,
+                    woundPoint: viewModel.woundPointNormalized
+                ))
             }
         }
     }
@@ -37,12 +80,48 @@ struct CaptureContainerView: View {
             .ignoresSafeArea()
     }
 
+    // MARK: - Tap-to-mark wound center (Apple Measure-style)
+    private var tapMarkerOverlay: some View {
+        GeometryReader { geometry in
+            ZStack {
+                // Capture taps anywhere on screen → normalized [0,1] wound point
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { location in
+                        let nx = location.x / geometry.size.width
+                        let ny = location.y / geometry.size.height
+                        viewModel.setWoundPoint(CGPoint(x: nx, y: ny))
+                        WOSHaptics.selection()
+                    }
+
+                // Render the marker if a wound point is set
+                if let normPoint = viewModel.woundPointNormalized {
+                    let x = normPoint.x * geometry.size.width
+                    let y = normPoint.y * geometry.size.height
+                    ZStack {
+                        Circle()
+                            .stroke(WOSColors.accent, lineWidth: 3)
+                            .frame(width: 44, height: 44)
+                        Circle()
+                            .fill(WOSColors.accent)
+                            .frame(width: 8, height: 8)
+                    }
+                    .position(x: x, y: y)
+                    .shadow(radius: 4)
+                }
+            }
+        }
+    }
+
     // MARK: - Overlay HUD
     private var captureOverlay: some View {
         VStack {
             topBar
             Spacer()
             bottomHUD
+            if viewModel.captureMode == .lidar {
+                captureButton
+            }
         }
         .padding()
     }
@@ -83,9 +162,18 @@ struct CaptureContainerView: View {
 
     private var frameCounter: some View {
         HStack(spacing: 6) {
-            Text("\(viewModel.selectedFrameCount)/\(viewModel.targetFrames)")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
+            if viewModel.captureMode == .lidar {
+                Image(systemName: "cube.transparent")
+                    .font(.system(size: 12))
+                    .foregroundColor(.white)
+                Text("\(viewModel.meshAnchorCount)")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+            } else {
+                Text("\(viewModel.selectedFrameCount)/\(viewModel.targetFrames)")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+            }
 
             WOSProgressRing(
                 progress: viewModel.progress,
@@ -103,14 +191,20 @@ struct CaptureContainerView: View {
     // MARK: - Bottom HUD
     private var bottomHUD: some View {
         VStack(spacing: WOSSpacing.md) {
-            MotionFeedback(status: viewModel.motionStatus)
+            if viewModel.captureMode == .lidar {
+                lidarHint
+            } else {
+                MotionFeedback(status: viewModel.motionStatus)
+            }
 
             HStack {
-                CoverageRadar(
-                    coverage: viewModel.arcCoverage,
-                    targetCoverage: ServerConfig.minArcCoverageDegrees
-                )
-                .frame(width: 64, height: 64)
+                if viewModel.captureMode == .multiview {
+                    CoverageRadar(
+                        coverage: viewModel.arcCoverage,
+                        targetCoverage: ServerConfig.minArcCoverageDegrees
+                    )
+                    .frame(width: 64, height: 64)
+                }
 
                 Spacer()
 
@@ -118,6 +212,71 @@ struct CaptureContainerView: View {
                     distance: viewModel.planeDistance,
                     status: viewModel.distanceStatus
                 )
+            }
+        }
+    }
+
+    // MARK: - LiDAR Hint
+    private var lidarHint: some View {
+        HStack(spacing: WOSSpacing.sm) {
+            Image(systemName: "hand.tap.fill")
+                .font(.system(size: 14))
+            if viewModel.woundPointNormalized == nil {
+                Text("Tap the wound to mark its center")
+                    .font(WOSTypography.footnote)
+            } else if viewModel.meshAnchorCount < ServerConfig.lidarMinMeshAnchors {
+                Text("Slowly pan around the wound...")
+                    .font(WOSTypography.footnote)
+            } else {
+                Text("Ready — tap Capture below")
+                    .font(WOSTypography.footnote)
+                    .foregroundColor(WOSColors.green)
+            }
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, WOSSpacing.md)
+        .padding(.vertical, WOSSpacing.sm)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+    }
+
+    // MARK: - LiDAR Capture Button
+    private var captureButton: some View {
+        let isReady = viewModel.meshAnchorCount >= ServerConfig.lidarMinMeshAnchors
+            && viewModel.woundPointNormalized != nil
+            && viewModel.trackingState == .normal
+
+        return Button(action: {
+            viewModel.userCompleteCapture()
+            WOSHaptics.complete()
+        }) {
+            ZStack {
+                Circle()
+                    .fill(isReady ? WOSColors.accent : Color.gray.opacity(0.5))
+                    .frame(width: 72, height: 72)
+                Circle()
+                    .stroke(.white, lineWidth: 4)
+                    .frame(width: 80, height: 80)
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+        }
+        .disabled(!isReady)
+        .padding(.bottom, WOSSpacing.lg)
+    }
+
+    // MARK: - Finalizing overlay
+    private var finalizingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.6).ignoresSafeArea()
+            VStack(spacing: WOSSpacing.lg) {
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .tint(.white)
+                Text("Building 3D mesh...")
+                    .font(WOSTypography.headline)
+                    .foregroundColor(.white)
             }
         }
     }

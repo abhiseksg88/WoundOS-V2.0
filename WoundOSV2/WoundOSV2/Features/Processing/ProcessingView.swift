@@ -3,6 +3,9 @@ import SwiftUI
 struct ProcessingView: View {
     @StateObject var viewModel: ProcessingViewModel
     let frames: [SelectedFrame]
+    /// Optional LiDAR payload — if non-nil, uses Tier 1 LiDAR pipeline instead of multiview.
+    var lidarPayload: LiDARScanPayload? = nil
+    var woundPoint: CGPoint? = nil
     var onComplete: ((ServerResponse) -> Void)?
 
     var body: some View {
@@ -24,7 +27,11 @@ struct ProcessingView: View {
         .padding(WOSSpacing.xxl)
         .background(WOSColors.background.ignoresSafeArea())
         .onAppear {
-            viewModel.startProcessing(frames: frames)
+            if let payload = lidarPayload {
+                viewModel.startLiDARProcessing(payload: payload, woundPoint: woundPoint)
+            } else {
+                viewModel.startProcessing(frames: frames)
+            }
         }
         .onChange(of: viewModel.isPreliminaryReady) { ready in
             if ready, let response = viewModel.preliminaryResponse {

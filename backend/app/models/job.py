@@ -48,8 +48,11 @@ class JobDocument(BaseModel):
     measurement_delta: dict | None = None
     error: str | None = None
     # Upload metadata
+    mode: str = "multiview"  # "multiview" (Depth Pro + COLMAP) or "lidar" (ARKit native)
     frames_count: int = 0
     gcs_frames_prefix: str = ""
+    gcs_mesh_path: str | None = None  # Set when mode == "lidar"
+    gcs_depth_path: str | None = None  # Optional 16-bit depth PNG
     wound_point: str | None = None
     use_woundambit: bool = False
     generate_splat: bool = False
